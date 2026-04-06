@@ -211,6 +211,13 @@ export function createApiRouter(
     res.json(logger.stats());
   });
 
+  router.delete("/logs/older-than/:days", (req, res) => {
+    const days = parseInt(req.params.days, 10);
+    if (isNaN(days) || days < 1) { res.status(400).json({ error: "Invalid days parameter" }); return; }
+    const removed = logger.clearOlderThan(days);
+    res.json({ ok: true, removed });
+  });
+
   router.delete("/logs", (_req, res) => {
     logger.clear();
     res.json({ ok: true });

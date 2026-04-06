@@ -27,12 +27,22 @@ export function QueryLogsPage() {
   const { data: stats, refetch: refetchStats } = useFetch<LogStats>("/api/logs/stats");
   const { data: connectors } = useFetch<ConnectorInfo[]>("/api/connectors");
 
+  const handleClearOld = async () => {
+    if (!confirm("Clear all query logs older than 3 days?")) return;
+    await apiDelete("/api/logs/older-than/3");
+    refetch();
+    refetchStats();
+    setRerunResult(null);
+    setPromptData(null);
+  };
+
   const handleClear = async () => {
-    if (!confirm("Clear all query logs?")) return;
+    if (!confirm("Clear ALL query logs? This cannot be undone.")) return;
     await apiDelete("/api/logs");
     refetch();
     refetchStats();
     setRerunResult(null);
+    setPromptData(null);
   };
 
   const handleRerun = async (entry: LogEntry) => {
@@ -79,7 +89,10 @@ export function QueryLogsPage() {
     <div>
       <div className="page-header">
         <h2>Query Logs</h2>
-        <button className="btn danger" onClick={handleClear}>Clear Logs</button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="btn danger" onClick={handleClearOld}>Clear Logs &gt; 3 Days</button>
+          <button className="btn danger" onClick={handleClear}>Clear All Logs</button>
+        </div>
       </div>
 
       {stats && (

@@ -112,6 +112,16 @@ export class QueryLogger {
     writeFileSync(this.filePath, "", "utf-8");
   }
 
+  /** Remove log entries older than the given number of days. Returns count of removed entries. */
+  clearOlderThan(days: number): number {
+    const entries = this.readAll();
+    const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+    const kept = entries.filter((e) => new Date(e.timestamp).getTime() >= cutoff);
+    const removed = entries.length - kept.length;
+    writeFileSync(this.filePath, kept.map((e) => JSON.stringify(e)).join("\n") + (kept.length > 0 ? "\n" : ""), "utf-8");
+    return removed;
+  }
+
   private readAll(): LogEntry[] {
     if (!existsSync(this.filePath)) return [];
     const content = readFileSync(this.filePath, "utf-8").trim();
