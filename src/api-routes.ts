@@ -128,6 +128,18 @@ export function createApiRouter(
     res.json(data);
   });
 
+  /** Reconstruct the AI system prompt for a given connector + question */
+  router.post("/connectors/:id/prompt", (req, res) => {
+    try {
+      const asksql = manager.get(req.params.id);
+      const question = (req.body as { question?: string }).question ?? "";
+      const systemPrompt = asksql.getSystemPrompt();
+      res.json({ systemPrompt, userMessage: question });
+    } catch (err) {
+      res.status(400).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
   // ── AI Provider ─────────────────────────────────────────────
 
   router.get("/ai", (_req, res) => {

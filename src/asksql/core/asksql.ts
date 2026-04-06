@@ -262,6 +262,11 @@ export class AskSQL {
     return this.llmContext?.schemaContext ?? "(not initialized)";
   }
 
+  /** Reconstruct the full system prompt that would be sent to the AI */
+  getSystemPrompt(): string {
+    return this.buildSystemPrompt();
+  }
+
   getConnectorType(): string {
     return this.connector.type;
   }

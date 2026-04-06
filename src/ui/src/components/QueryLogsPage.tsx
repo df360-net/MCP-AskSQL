@@ -11,7 +11,10 @@ export function QueryLogsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [rerunning, setRerunning] = useState<string | null>(null);
   const [rerunResult, setRerunResult] = useState<{ entryId: string; sql: string; connector: string; data?: RerunResult; error?: string } | null>(null);
+  const [promptLoading, setPromptLoading] = useState<string | null>(null);
+  const [promptData, setPromptData] = useState<{ entryId: string; systemPrompt: string; userMessage: string } | null>(null);
   const rerunRef = useRef<HTMLDivElement>(null);
+  const promptRef = useRef<HTMLDivElement>(null);
   const pageSize = 10;
 
   const params = new URLSearchParams();
@@ -49,6 +52,24 @@ export function QueryLogsPage() {
       setTimeout(() => rerunRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
     } finally {
       setRerunning(null);
+    }
+  };
+
+  const handlePrompt = async (entry: LogEntry) => {
+    setPromptLoading(entry.id);
+    setPromptData(null);
+    try {
+      const connId = entry.connector === "default" ? undefined : entry.connector;
+      const data = await apiPost<{ systemPrompt: string; userMessage: string }>(
+        `/api/connectors/${connId}/prompt`,
+        { question: entry.question ?? entry.sql ?? "" },
+      );
+      setPromptData({ entryId: entry.id, systemPrompt: data.systemPrompt, userMessage: entry.question ?? entry.sql ?? "" });
+      setTimeout(() => promptRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+    } catch (err) {
+      setPromptData({ entryId: entry.id, systemPrompt: `Error: ${err instanceof Error ? err.message : String(err)}`, userMessage: "" });
+    } finally {
+      setPromptLoading(null);
     }
   };
 
@@ -117,6 +138,13 @@ export function QueryLogsPage() {
                   {entry.question && <div><strong>Question:</strong> {entry.question}</div>}
                   {entry.sql && <div><strong>SQL:</strong> <code>{entry.sql}</code></div>}
                   {entry.error && <div className="error-msg"><strong>Error:</strong> {entry.error}</div>}
+                  <button
+                    className="prompt-reconstruct-btn"
+                    disabled={promptLoading === entry.id}
+                    onClick={(e) => { e.stopPropagation(); handlePrompt(entry); }}
+                  >
+                    {promptLoading === entry.id ? "Loading..." : "Reconstruct AI Prompt"}
+                  </button>
                 </td>
               </tr>
             )}
@@ -183,6 +211,37 @@ export function QueryLogsPage() {
                 </div>
               )}
             </>
+          )}
+        </div>
+      )}
+      {/* Reconstructed AI Prompt section */}
+      {promptData && (
+        <div className="rerun-result" ref={promptRef}>
+          <div className="rerun-header">
+            <h3>Reconstructed AI Prompt</h3>
+            <button onClick={() => setPromptData(null)}>Close</button>
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <strong>System Prompt:</strong>
+            <div className="prompt-wrapper">
+              <button
+                className="prompt-copy-btn"
+                title="Copy System Prompt"
+                onClick={() => { navigator.clipboard.writeText(promptData.systemPrompt).catch(() => {}); }}
+              >
+                <svg width="14" height="14" fill="none" stroke="#fff" viewBox="0 0 24 24">
+                  <rect x="9" y="9" width="13" height="13" rx="2" strokeWidth={2} />
+                  <path strokeWidth={2} d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+                </svg>
+              </button>
+              <pre className="prompt-display">{promptData.systemPrompt}</pre>
+            </div>
+          </div>
+          {promptData.userMessage && (
+            <div>
+              <strong>User Message:</strong>
+              <pre className="prompt-display">{promptData.userMessage}</pre>
+            </div>
           )}
         </div>
       )}

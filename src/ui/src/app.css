@@ -402,6 +402,31 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: #2563eb
 .rerun-meta { font-size: 13px; color: #666; margin-bottom: 12px; }
 .rerun-meta code { color: #7c3aed; font-size: 12px; }
 
+/* ── AI Prompt Reconstruct ─────────────────────────────────── */
+.prompt-reconstruct-btn {
+  margin-top: 8px; padding: 8px 18px; border: none; border-radius: 10px;
+  background: linear-gradient(135deg, #3b82f6, #2563eb); color: #fff;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  box-shadow: 0 4px 12px rgba(59,130,246,0.35); transition: all 0.2s;
+}
+.prompt-reconstruct-btn:hover { background: linear-gradient(135deg, #3b82f6, #2563eb); color: #fff; box-shadow: 0 6px 16px rgba(59,130,246,0.45); transform: translateY(-1px); }
+.prompt-reconstruct-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+/* ── AI Prompt Display ─────────────────────────────────────── */
+.prompt-wrapper { position: relative; margin-top: 8px; }
+.prompt-copy-btn {
+  position: absolute; top: 10px; right: calc(10px + 1rem); z-index: 1;
+  background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 6px; padding: 5px 6px; cursor: pointer; line-height: 0;
+  transition: background 0.2s;
+}
+.prompt-copy-btn:hover { background: rgba(255,255,255,0.25); }
+.prompt-display {
+  background: #1e1e2e; color: #cdd6f4; padding: 16px; border-radius: 8px;
+  font-size: 13px; line-height: 1.6; white-space: pre-wrap; word-break: break-word;
+  max-height: 500px; overflow-y: auto; margin: 0;
+}
+
 /* ── Responsive ────────────────────────────────────────────── */
 @media (max-width: 768px) {
   .sidebar { width: 56px; padding: 16px 8px; }
