@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+
+# Build output
+build/
+dist/
+
+# Config with real credentials
+config.json
+config.json.save
+config.test.json
+
+# Cached schema data
+data/
+
+# Keys and secrets
+keys/
+*.pem
+*.key
+.env
+.env.*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+fix

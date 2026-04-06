@@ -1,0 +1,65 @@
+{
+  "connectors": [
+    {
+      "id": "postgres",
+      "connectionString": "postgres://user:password@localhost:5432/mydb",
+      "schemas": ["public"]
+    },
+    {
+      "id": "mysql",
+      "connectionString": "mysql://user:password@localhost:3306/mydb",
+      "schemas": ["mydb"]
+    },
+    {
+      "id": "mssql",
+      "connectionString": "mssql://sa:password@localhost:1433/mydb",
+      "schemas": ["dbo"]
+    },
+    {
+      "id": "oracle",
+      "connectionString": "oracle://scott:tiger@localhost:1521/ORCL",
+      "schemas": ["SCOTT"]
+    },
+    {
+      "id": "snowflake",
+      "connectionString": "snowflake://user:password@xy12345.us-east-1/analytics/compute_wh",
+      "schemas": ["PUBLIC"]
+    },
+    {
+      "id": "bigquery",
+      "connectionString": "bigquery://my-project?keyFile=/path/to/service-account.json&location=US",
+      "schemas": ["my_dataset"]
+    },
+    {
+      "id": "redshift",
+      "connectionString": "redshift://awsuser:password@cluster.abc123.us-east-1.redshift.amazonaws.com:5439/dev",
+      "schemas": ["public"]
+    },
+    {
+      "id": "databricks",
+      "connectionString": "databricks://token:dapi_abc123@example.cloud.databricks.com/sql/1.0/warehouses/abc123",
+      "schemas": ["default"]
+    },
+    {
+      "id": "dremio",
+      "connectionString": "dremio://user:password@dremio.example.com:31010/my_source",
+      "schemas": ["my_source"]
+    },
+    {
+      "id": "teradata",
+      "connectionString": "teradata://dbc:dbc@teradata.example.com/production",
+      "schemas": ["production"]
+    }
+  ],
+  "ai": {
+    "baseUrl": "https://api.deepseek.com/v1",
+    "apiKey": "sk-your-key-here",
+    "model": "deepseek-chat"
+  },
+  "safety": {
+    "maxRows": 5000,
+    "timeoutMs": 30000,
+    "maxRetries": 2
+  },
+  "schemaCacheTtlHours": 24
+}
