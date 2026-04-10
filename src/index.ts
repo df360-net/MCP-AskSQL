@@ -9,7 +9,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import express from "express";
 import { registerTools } from "./tools.js";
-import { loadConfig } from "./config.js";
+import { loadConfig, type AskAgentAppConfig } from "./config.js";
 import { ConfigStore } from "./config-store.js";
 import { ConnectorManager } from "./connector-manager.js";
 import { QueryLogger } from "./query-logger.js";
@@ -18,30 +18,33 @@ import { createApiRouter } from "./api-routes.js";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // Shared: create MCP server + register tools
-function createServer(manager: ConnectorManager, logger: QueryLogger): McpServer {
+function createServer(manager: ConnectorManager, logger: QueryLogger, askConfig?: AskAgentAppConfig): McpServer {
   const server = new McpServer({
     name: "mcp-asksql",
     version: "1.0.0",
   });
-  registerTools(server, manager, logger);
+  registerTools(server, manager, logger, askConfig);
+  if (askConfig?.enabled) {
+    console.error(`[ask-agent] Agent loop enabled (maxTurns: ${askConfig.maxTurns ?? 10})`);
+  }
   return server;
 }
 
 // --- stdio transport ---
-async function startStdio(manager: ConnectorManager, logger: QueryLogger) {
-  const server = createServer(manager, logger);
+async function startStdio(manager: ConnectorManager, logger: QueryLogger, askConfig?: AskAgentAppConfig) {
+  const server = createServer(manager, logger, askConfig);
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error("mcp-asksql running on stdio");
 }
 
 // --- HTTP transport (stateful — session per client) ---
-async function startHttp(manager: ConnectorManager, logger: QueryLogger, configStore: ConfigStore, port: number) {
+async function startHttp(manager: ConnectorManager, logger: QueryLogger, configStore: ConfigStore, port: number, askConfig?: AskAgentAppConfig) {
   const app = express();
   app.use(express.json());
 
   // ── REST API for admin UI ──
-  app.use("/api", createApiRouter(manager, configStore, logger));
+  app.use("/api", createApiRouter(manager, configStore, logger, askConfig));
 
   // ── MCP protocol (stateful sessions) ──
   const sessions = new Map<string, StreamableHTTPServerTransport>();
@@ -63,7 +66,7 @@ async function startHttp(manager: ConnectorManager, logger: QueryLogger, configS
         sessionIdGenerator: () => randomUUID(),
       });
 
-      const server = createServer(manager, logger);
+      const server = createServer(manager, logger, askConfig);
       await server.connect(transport);
 
       transport.onclose = () => {
@@ -176,7 +179,7 @@ async function main() {
   console.error(`Loaded ${manager.listConnectors().length} connector(s)`);
 
   if (args.includes("--stdio")) {
-    await startStdio(manager, logger);
+    await startStdio(manager, logger, config.ask);
   } else {
     const portIndex = args.indexOf("--port");
     let port = 8080;
@@ -188,7 +191,7 @@ async function main() {
         port = parsed;
       }
     }
-    await startHttp(manager, logger, configStore, port);
+    await startHttp(manager, logger, configStore, port, config.ask);
   }
 }
 

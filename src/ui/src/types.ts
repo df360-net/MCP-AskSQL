@@ -78,6 +78,11 @@ export interface AskResult {
   routedTo?: string;
   routeMethod?: string;
   routeConfidence?: string;
+  // Agent loop fields (when ask.enabled = true)
+  answer?: string;
+  turns?: number;
+  toolCalls?: Array<{ turn: number; tool: string; input: Record<string, unknown>; output: string; durationMs: number }>;
+  tokenUsage?: { promptTokens: number; completionTokens: number; totalTokens: number; estimatedCost: number };
 }
 
 export interface SQLExecuteResult {

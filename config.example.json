@@ -61,5 +61,10 @@
     "timeoutMs": 30000,
     "maxRetries": 2
   },
-  "schemaCacheTtlHours": 24
+  "schemaCacheTtlHours": 24,
+
+  "ask": {
+    "enabled": false,
+    "maxTurns": 10
+  }
 }

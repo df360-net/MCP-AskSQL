@@ -364,6 +364,9 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: #2563eb
   transition: all 0.2s; padding: 0;
 }
 .copy-btn:hover { background: #eff6ff; color: #2563eb; border-color: #2563eb; }
+.pdf-btn { color: #e94560; }
+.pdf-btn:hover { background: #fef2f2; color: #e94560; border-color: #e94560; }
+.pdf-btn:disabled { opacity: 0.5; cursor: wait; }
 
 .result-explanation { margin-bottom: 12px; }
 .result-explanation h4 { font-size: 12px; text-transform: uppercase; color: #666; margin-bottom: 4px; }
@@ -373,6 +376,58 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: #2563eb
 .result-table-wrapper { overflow-x: auto; max-height: 400px; overflow-y: auto; border-radius: 8px; }
 .result-table td { font-size: 13px; white-space: nowrap; }
 .null-val { color: #aaa; font-style: italic; }
+
+/* Live streaming panel */
+.live-stream-panel {
+  margin-top: 16px; padding: 16px; background: #fff; border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08); border: 1px solid #e0e7ff;
+}
+.live-stream-header {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 12px;
+}
+.live-stream-header h4 { font-size: 13px; color: #1a1a2e; margin: 0; font-weight: 600; }
+.live-dot {
+  width: 8px; height: 8px; border-radius: 50%; background: #10b981;
+  animation: live-pulse 1.5s ease-in-out infinite;
+}
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.8); }
+}
+.live-stream-body {
+  max-height: 300px; overflow-y: auto; scroll-behavior: smooth;
+}
+.live-turn {
+  padding: 8px 12px; border-left: 3px solid #e0e7ff; margin-bottom: 8px;
+  animation: live-fade-in 0.3s ease-out;
+}
+.live-turn pre {
+  margin: 0; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-break: break-word;
+  color: #444; font-family: 'SF Mono', 'Consolas', monospace;
+}
+@keyframes live-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Agent loop explanation & answer */
+.agent-explanation {
+  background: #f8f5f0; color: #444; padding: 14px; border-radius: 8px; border-left: 4px solid #e09f5a;
+  font-size: 13px; line-height: 1.6; white-space: pre-wrap; word-break: break-word;
+  max-height: 300px; overflow: auto;
+}
+.result-answer { margin-bottom: 12px; }
+.agent-answer {
+  background: #1e1e2e; color: #cdd6f4; padding: 20px; border-radius: 8px;
+  overflow: auto; font-size: 13px; line-height: 1.6; white-space: pre-wrap; word-break: break-word;
+  max-height: 600px;
+}
+.result-tool-calls { margin-bottom: 12px; font-size: 13px; }
+.result-tool-calls summary { cursor: pointer; color: #2563eb; font-weight: 500; padding: 6px 0; }
+.tool-call-entry { padding: 8px 12px; border-left: 3px solid #e0e7ff; margin: 6px 0; }
+.tool-call-badge { background: #e0e7ff; color: #3b5998; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-right: 8px; }
+.tool-call-time { color: #888; font-size: 12px; margin-left: 8px; }
+.tool-call-input { background: #f5f5f5; padding: 6px 10px; border-radius: 4px; font-size: 12px; margin-top: 4px; overflow-x: auto; }
 
 .query-history { margin-top: 24px; }
 .query-history h4 { font-size: 12px; text-transform: uppercase; color: #666; margin-bottom: 8px; }

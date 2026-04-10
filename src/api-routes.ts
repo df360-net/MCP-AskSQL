@@ -1,9 +1,11 @@
 import { Router } from "express";
 import type { ConnectorManager } from "./connector-manager.js";
-import type { ConnectorConfig } from "./config.js";
+import type { ConnectorConfig, AskAgentAppConfig } from "./config.js";
 import type { ConfigStore } from "./config-store.js";
 import type { QueryLogger } from "./query-logger.js";
 import { AIClient, type AIConfig } from "./asksql/core/ai/client.js";
+import { askAgentLoop } from "./ask/agent-loop.js";
+import type { AgentStreamEvent } from "./ask/types.js";
 
 function maskApiKey(key: string): string {
   if (key.length <= 4) return "****";
@@ -19,8 +21,22 @@ export function createApiRouter(
   manager: ConnectorManager,
   configStore: ConfigStore,
   logger: QueryLogger,
+  askConfig?: AskAgentAppConfig,
 ): Router {
+  const askAgentEnabled = askConfig?.enabled ?? false;
+  const askAgentMaxTurns = askConfig?.maxTurns ?? 10;
   const router = Router();
+
+  // ── Settings (expose safety config to UI) ───────────────────
+
+  router.get("/settings", (_req, res) => {
+    const ai = manager.getAIConfig();
+    res.json({
+      maxRows: configStore.read().safety?.maxRows ?? 5000,
+      askEnabled: askAgentEnabled,
+      askMaxTurns: askAgentMaxTurns,
+    });
+  });
 
   // ── Connectors ──────────────────────────────────────────────
 
@@ -270,6 +286,59 @@ export function createApiRouter(
         routeInfo = { method: route.method, confidence: route.confidence };
       }
 
+      // ── Agent loop branch (2-layer intelligence) with SSE streaming ──
+      if (askAgentEnabled) {
+        // Set up SSE headers
+        res.writeHead(200, {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+        });
+
+        // Send route info as first event
+        if (routeInfo) {
+          res.write(`data: ${JSON.stringify({ type: "route", routedTo: resolvedConnector, routeMethod: routeInfo.method, routeConfidence: routeInfo.confidence })}\n\n`);
+        }
+
+        const agentResult = await askAgentLoop({
+          question,
+          connectorId: resolvedConnector,
+          manager,
+          aiConfig: manager.getAIConfig(),
+          maxTurns: askAgentMaxTurns,
+          maxRows,
+          onTurn: (event: AgentStreamEvent) => {
+            res.write(`data: ${JSON.stringify(event)}\n\n`);
+          },
+        });
+
+        // Send final complete result
+        res.write(`data: ${JSON.stringify({
+          type: "result",
+          success: agentResult.success,
+          answer: agentResult.answer,
+          explanation: agentResult.explanation,
+          turns: agentResult.turns,
+          toolCalls: agentResult.toolCalls,
+          tokenUsage: agentResult.tokenUsage,
+          executionTimeMs: Date.now() - start,
+          ...(routeInfo && { routedTo: resolvedConnector, routeMethod: routeInfo.method, routeConfidence: routeInfo.confidence }),
+        })}\n\n`);
+
+        res.end();
+
+        logger.log({
+          tool: "ask",
+          connector: resolvedConnector ?? "default",
+          question,
+          success: agentResult.success,
+          executionTimeMs: Date.now() - start,
+        });
+        console.error(`[ask-agent] REST /api/ask: ${agentResult.turns} turns, ${agentResult.toolCalls.length} tool calls, ${agentResult.tokenUsage.totalTokens} tokens`);
+        return;
+      }
+
+      // ── Original single-shot path ──
       const asksql = manager.get(resolvedConnector);
       const result = await asksql.ask(question, { maxRows });
 
@@ -298,6 +367,45 @@ export function createApiRouter(
       const msg = err instanceof Error ? err.message : String(err);
       logger.log({ tool: "ask", connector: connector ?? "default", question, success: false, error: msg, executionTimeMs: Date.now() - start });
       res.status(500).json({ error: msg });
+    }
+  });
+
+  // ── Render Markdown as PDF ──────────────────────────────────
+
+  router.post("/render-pdf", async (req, res) => {
+    const { markdown } = req.body as { markdown?: string };
+    if (!markdown) { res.status(400).json({ error: "markdown field required" }); return; }
+    try {
+      const { mdToPdf } = await import("md-to-pdf");
+      const pdf = await mdToPdf(
+        { content: markdown },
+        {
+          launch_options: { headless: true, args: ["--no-sandbox"] },
+          pdf_options: { format: "A4", margin: { top: "20mm", bottom: "20mm", left: "15mm", right: "15mm" } },
+          css: `
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 13px; color: #1a1a2e; line-height: 1.6; }
+            h1 { color: #e94560; border-bottom: 2px solid #e94560; padding-bottom: 6px; }
+            h2 { color: #16213e; margin-top: 24px; }
+            h3 { color: #0f3460; }
+            table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+            th, td { border: 1px solid #ccc; padding: 6px 10px; text-align: left; font-size: 12px; }
+            th { background: #16213e; color: white; }
+            tr:nth-child(even) { background: #f5f5f5; }
+            code { background: #f0f0f0; padding: 2px 4px; border-radius: 3px; font-size: 12px; }
+            pre { background: #f0f0f0; padding: 12px; border-radius: 6px; overflow-x: auto; }
+            strong { color: #0f3460; }
+          `,
+        },
+      );
+      if (pdf.content) {
+        res.setHeader("Content-Type", "application/pdf");
+        res.setHeader("Content-Disposition", "attachment; filename=report.pdf");
+        res.end(pdf.content);
+      } else {
+        res.status(500).json({ error: "PDF generation returned no content" });
+      }
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
     }
   });
 

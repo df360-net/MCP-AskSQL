@@ -1,0 +1,49 @@
+import type { ConnectorManager } from "../connector-manager.js";
+import type { AIConfig, TokenUsage } from "../asksql/core/ai/client.js";
+
+/** Emitted after each turn completes */
+export interface TurnEvent {
+  turn: number;
+  reasoning: string;     // AI thinking + tool call details
+  toolCalls: ToolCallLog[];
+  done: false;
+}
+
+/** Emitted when the agent loop finishes */
+export interface DoneEvent {
+  turn: number;
+  done: true;
+  answer: string;
+  explanation: string;
+  tokenUsage: TokenUsage;
+  success: boolean;
+}
+
+export type AgentStreamEvent = TurnEvent | DoneEvent;
+
+export interface AskAgentConfig {
+  question: string;
+  connectorId?: string;
+  manager: ConnectorManager;
+  aiConfig: AIConfig;
+  maxTurns?: number;     // default 10
+  maxRows?: number;      // default 100
+  onTurn?: (event: AgentStreamEvent) => void;
+}
+
+export interface AskAgentResult {
+  answer: string;          // Final narrated answer (Markdown)
+  explanation: string;     // Agent's reasoning across turns (what it explored and why)
+  turns: number;           // How many AI <-> tool round-trips
+  toolCalls: ToolCallLog[];// Audit trail
+  tokenUsage: TokenUsage;  // Cumulative token usage
+  success: boolean;
+}
+
+export interface ToolCallLog {
+  turn: number;
+  tool: string;
+  input: Record<string, unknown>;
+  output: string;
+  durationMs: number;
+}

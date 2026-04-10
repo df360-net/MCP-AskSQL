@@ -26,8 +26,35 @@ export interface AIConfig {
 }
 
 export interface ChatMessage {
-  role: "system" | "user" | "assistant";
+  role: "system" | "user" | "assistant" | "tool";
   content: string;
+  tool_calls?: ToolCall[];
+  tool_call_id?: string;
+}
+
+export interface ToolDefinition {
+  type: "function";
+  function: {
+    name: string;
+    description: string;
+    parameters: Record<string, unknown>;
+  };
+}
+
+export interface ToolCall {
+  id: string;
+  type: "function";
+  function: {
+    name: string;
+    arguments: string; // JSON string
+  };
+}
+
+export interface AICallWithToolsResult {
+  content: string;
+  toolCalls: ToolCall[];
+  finishReason: string;
+  tokenUsage: TokenUsage;
 }
 
 export interface AICallResult<T = string> {
@@ -46,7 +73,13 @@ export interface TokenUsage {
 }
 
 interface APIResponse {
-  choices?: Array<{ message?: { content?: string } }>;
+  choices?: Array<{
+    message?: {
+      content?: string | null;
+      tool_calls?: ToolCall[];
+    };
+    finish_reason?: string;
+  }>;
   usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
 }
 
@@ -170,6 +203,96 @@ export class AIClient {
     }
 
     return { success: false, error: lastError };
+  }
+
+  /**
+   * Call the chat completions API with tool (function-calling) support.
+   * Used by the agent loop. Does NOT parse JSON — returns raw content + tool calls.
+   */
+  async callWithTools(
+    messages: ChatMessage[],
+    tools?: ToolDefinition[],
+  ): Promise<AICallWithToolsResult> {
+    const maxRetries = 3;
+    let lastError = "Unknown error";
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), this.config.timeoutMs!);
+
+        const body: Record<string, unknown> = {
+          model: this.config.model,
+          messages,
+          temperature: this.config.temperature,
+          max_tokens: this.config.maxTokens,
+        };
+        if (tools && tools.length > 0) {
+          body.tools = tools;
+        }
+
+        const res = await fetch(`${this.config.baseUrl}/chat/completions`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${this.config.apiKey}`,
+            ...this.config.headers,
+          },
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        });
+
+        clearTimeout(timer);
+
+        if (!res.ok) {
+          const text = await res.text();
+          const retryable = res.status >= 500 || res.status === 429;
+          if (retryable && attempt < maxRetries - 1) {
+            await this.backoff(attempt);
+            continue;
+          }
+          lastError = `AI API ${res.status}: ${text.slice(0, 200)}`;
+          break;
+        }
+
+        const json = (await res.json()) as APIResponse;
+        const choice = json.choices?.[0];
+        const content = choice?.message?.content ?? "";
+        const toolCalls = choice?.message?.tool_calls ?? [];
+        const finishReason = choice?.finish_reason ?? "stop";
+        const usage = json.usage ?? { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+
+        return {
+          content,
+          toolCalls,
+          finishReason,
+          tokenUsage: {
+            promptTokens: usage.prompt_tokens,
+            completionTokens: usage.completion_tokens,
+            totalTokens: usage.total_tokens,
+            estimatedCost: this.estimateCost(usage.prompt_tokens, usage.completion_tokens),
+          },
+        };
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes("abort")) {
+          lastError = `AI API timeout (${this.config.timeoutMs}ms)`;
+          break;
+        }
+        lastError = msg;
+        if (attempt < maxRetries - 1) {
+          await this.backoff(attempt);
+        }
+      }
+    }
+
+    // Return an error result with empty tool calls
+    return {
+      content: `Error: ${lastError}`,
+      toolCalls: [],
+      finishReason: "error",
+      tokenUsage: { promptTokens: 0, completionTokens: 0, totalTokens: 0, estimatedCost: 0 },
+    };
   }
 
   /** Strip markdown code fences if present, extract JSON */

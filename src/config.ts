@@ -16,6 +16,13 @@ export interface ConnectorConfig {
   schemaPrefix?: string;
 }
 
+export interface AskAgentAppConfig {
+  /** Enable the agent loop for the ask MCP tool (default: false) */
+  enabled?: boolean;
+  /** Max AI ↔ tool round-trips before forced summary (default: 10) */
+  maxTurns?: number;
+}
+
 export interface AppConfig {
   connectors: Array<ConnectorConfig>;
   ai: AIConfig;
@@ -27,6 +34,8 @@ export interface AppConfig {
   /** Hours before cached schema is considered stale (default: 24). 0 = never auto-refresh. */
   schemaCacheTtlHours: number;
   dataDir: string;
+  /** Agent loop config for the ask MCP tool */
+  ask?: AskAgentAppConfig;
 }
 
 // ---------------------------------------------------------------------------
@@ -57,6 +66,10 @@ interface FileConfig {
   };
   /** Hours before cached schema is considered stale (default: 24). 0 = never auto-refresh. */
   schemaCacheTtlHours?: number;
+  ask?: {
+    enabled?: boolean;
+    maxTurns?: number;
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -119,5 +132,5 @@ export function loadConfig(configPath?: string): AppConfig {
   const dataDir = resolve(PROJECT_ROOT, "data");
   const schemaCacheTtlHours = raw.schemaCacheTtlHours ?? 24;
 
-  return { connectors, ai, safety: raw.safety, schemaCacheTtlHours, dataDir };
+  return { connectors, ai, safety: raw.safety, schemaCacheTtlHours, dataDir, ask: raw.ask };
 }

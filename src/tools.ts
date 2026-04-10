@@ -2,8 +2,17 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { ConnectorManager } from "./connector-manager.js";
 import type { QueryLogger } from "./query-logger.js";
+import type { AskAgentAppConfig } from "./config.js";
+import { askAgentLoop } from "./ask/agent-loop.js";
 
-export function registerTools(server: McpServer, manager: ConnectorManager, logger?: QueryLogger): void {
+export function registerTools(
+  server: McpServer,
+  manager: ConnectorManager,
+  logger?: QueryLogger,
+  askConfig?: AskAgentAppConfig,
+): void {
+  const askAgentEnabled = askConfig?.enabled ?? false;
+  const askAgentMaxTurns = askConfig?.maxTurns ?? 10;
   // Tool 1: ask
   server.tool(
     "ask",
@@ -26,6 +35,31 @@ export function registerTools(server: McpServer, manager: ConnectorManager, logg
           console.error(`[auto-route] "${question.slice(0, 60)}" → ${route.connectorId} (${route.method}: ${route.confidence})`);
         }
 
+        // ── Agent loop branch (2-layer intelligence) ──
+        if (askAgentEnabled) {
+          const agentResult = await askAgentLoop({
+            question,
+            connectorId: resolvedConnector,
+            manager,
+            aiConfig: manager.getAIConfig(),
+            maxTurns: askAgentMaxTurns,
+            maxRows: maxRows ?? 100,
+          });
+          logger?.log({
+            tool: "ask",
+            connector: resolvedConnector ?? "default",
+            question,
+            success: agentResult.success,
+            executionTimeMs: Date.now() - start,
+          });
+          console.error(`[ask-agent] ${agentResult.turns} turns, ${agentResult.toolCalls.length} tool calls, ${agentResult.tokenUsage.totalTokens} tokens`);
+          return {
+            content: [{ type: "text", text: agentResult.answer }],
+            isError: !agentResult.success,
+          };
+        }
+
+        // ── Original single-shot path ──
         const asksql = manager.get(resolvedConnector);
         const result = await asksql.ask(question, { maxRows: maxRows ?? 100 });
         logger?.log({
