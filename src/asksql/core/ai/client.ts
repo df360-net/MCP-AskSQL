@@ -23,6 +23,8 @@ export interface AIConfig {
   promptPricePerMillion?: number;
   /** Cost per 1M completion tokens in USD (default: 0.14 for DeepSeek-chat) */
   completionPricePerMillion?: number;
+  /** Max retry attempts for API calls (default: 3) */
+  maxRetries?: number;
 }
 
 export interface ChatMessage {
@@ -112,7 +114,7 @@ export class AIClient {
     parseJson: boolean = false,
     feature: string = "generic",
   ): Promise<AICallResult<T>> {
-    const maxRetries = 3;
+    const maxRetries = this.config.maxRetries ?? 3;
     let lastError = "Unknown error";
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -213,7 +215,7 @@ export class AIClient {
     messages: ChatMessage[],
     tools?: ToolDefinition[],
   ): Promise<AICallWithToolsResult> {
-    const maxRetries = 3;
+    const maxRetries = this.config.maxRetries ?? 3;
     let lastError = "Unknown error";
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {

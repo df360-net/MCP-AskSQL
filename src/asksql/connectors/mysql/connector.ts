@@ -68,6 +68,7 @@ export class MySQLConnector implements AskSQLConnector {
 
   private pool: mysql.Pool;
   private database: string;
+  private maxSampleValues: number;
 
   constructor(config: Record<string, unknown>) {
     const connectionString = config.connectionString as string | undefined;
@@ -85,10 +86,12 @@ export class MySQLConnector implements AskSQLConnector {
       password: parsed.password,
       database: this.database,
       waitForConnections: true,
-      connectionLimit: 5,
-      connectTimeout: 10000,
+      connectionLimit: (config.poolSize as number) ?? 5,
+      connectTimeout: (config.connectTimeoutMs as number) ?? 10000,
+      idleTimeout: (config.idleTimeoutMs as number) ?? 20000,
       enableKeepAlive: true,
     });
+    this.maxSampleValues = (config.maxSampleValues as number) ?? 10;
   }
 
   /**
@@ -224,7 +227,7 @@ export class MySQLConnector implements AskSQLConnector {
 
       for (const colName of req.columns) {
         try {
-          const maxDist = req.maxDistinctValues ?? 10;
+          const maxDist = req.maxDistinctValues ?? this.maxSampleValues;
           const qualified = `${ident(req.schemaName)}.${ident(req.tableName)}`;
           const col = ident(colName);
 

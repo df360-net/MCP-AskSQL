@@ -26,8 +26,9 @@ export interface AskAgentConfig {
   connectorId?: string;
   manager: ConnectorManager;
   aiConfig: AIConfig;
-  maxTurns?: number;     // default 10
-  maxRows?: number;      // default 100
+  maxTurns?: number;              // default 10
+  maxRows?: number;               // default from config safety.maxRows
+  toolOutputMaxChars?: number;    // default 2000
   onTurn?: (event: AgentStreamEvent) => void;
 }
 

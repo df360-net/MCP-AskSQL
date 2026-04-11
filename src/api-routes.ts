@@ -25,6 +25,8 @@ export function createApiRouter(
 ): Router {
   const askAgentEnabled = askConfig?.enabled ?? false;
   const askAgentMaxTurns = askConfig?.maxTurns ?? 10;
+  const askToolOutputMaxChars = askConfig?.toolOutputMaxChars;
+  const safety = manager.getSafetyConfig();
   const router = Router();
 
   // ── Settings (expose safety config to UI) ───────────────────
@@ -244,7 +246,7 @@ export function createApiRouter(
   router.post("/execute-sql", async (req, res) => {
     const { sql, connector } = req.body as { sql: string; connector?: string; maxRows?: number };
     if (!sql) { res.status(400).json({ error: "sql is required" }); return; }
-    const maxRows = Math.min(Math.max(1, Number(req.body.maxRows) || 100), 10000);
+    const maxRows = Math.min(Math.max(1, Number(req.body.maxRows) || safety.maxRows), safety.maxRows);
 
     const start = Date.now();
     try {
@@ -273,7 +275,7 @@ export function createApiRouter(
   router.post("/ask", async (req, res) => {
     const { question, connector } = req.body as { question: string; connector?: string; maxRows?: number };
     if (!question) { res.status(400).json({ error: "question is required" }); return; }
-    const maxRows = Math.min(Math.max(1, Number(req.body.maxRows) || 100), 10000);
+    const maxRows = Math.min(Math.max(1, Number(req.body.maxRows) || safety.maxRows), safety.maxRows);
 
     const start = Date.now();
     try {
@@ -307,6 +309,7 @@ export function createApiRouter(
           aiConfig: manager.getAIConfig(),
           maxTurns: askAgentMaxTurns,
           maxRows,
+          toolOutputMaxChars: askToolOutputMaxChars,
           onTurn: (event: AgentStreamEvent) => {
             res.write(`data: ${JSON.stringify(event)}\n\n`);
           },

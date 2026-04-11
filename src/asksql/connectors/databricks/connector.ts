@@ -75,6 +75,7 @@ export class DatabricksConnector implements AskSQLConnector {
   private httpPath: string;
   private token: string;
   private catalog: string;
+  private maxSampleValues: number;
 
   constructor(config: Record<string, unknown>) {
     const connectionString = config.connectionString as string | undefined;
@@ -88,6 +89,7 @@ export class DatabricksConnector implements AskSQLConnector {
     this.token = parsed.token;
     this.catalog = (config.catalog as string) ?? parsed.catalog;
     this.client = new DBSQLClient();
+    this.maxSampleValues = (config.maxSampleValues as number) ?? 20;
   }
 
   /**
@@ -237,7 +239,7 @@ export class DatabricksConnector implements AskSQLConnector {
 
       for (const colName of req.columns) {
         try {
-          const maxDist = req.maxDistinctValues ?? 20;
+          const maxDist = req.maxDistinctValues ?? this.maxSampleValues;
           const qualified = `${ident(req.schemaName)}.${ident(req.tableName)}`;
           const col = ident(colName);
 

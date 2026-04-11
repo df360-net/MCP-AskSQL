@@ -77,6 +77,7 @@ export class BigQueryConnector implements AskSQLConnector {
   private keyFilename: string | undefined;
   private location: string;
   private maxBytesBilled: string;
+  private maxSampleValues: number;
 
   constructor(config: Record<string, unknown>) {
     const connectionString = config.connectionString as string | undefined;
@@ -90,6 +91,7 @@ export class BigQueryConnector implements AskSQLConnector {
     this.location = parsed.location;
     // Default 1 GB safety cap on bytes billed per query
     this.maxBytesBilled = (config.maxBytesBilled as string) ?? "1073741824";
+    this.maxSampleValues = (config.maxSampleValues as number) ?? 10;
   }
 
   /**
@@ -261,7 +263,7 @@ export class BigQueryConnector implements AskSQLConnector {
 
       for (const colName of req.columns) {
         try {
-          const maxDist = req.maxDistinctValues ?? 10;
+          const maxDist = req.maxDistinctValues ?? this.maxSampleValues;
           const qualified = `${ident(req.schemaName)}.${ident(req.tableName)}`;
           const col = ident(colName);
 

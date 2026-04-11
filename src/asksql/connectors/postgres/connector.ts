@@ -60,6 +60,8 @@ export class PostgresConnector implements AskSQLConnector {
   readonly dialectHints = PG_DIALECT_HINTS;
 
   private sql: postgres.Sql;
+  private maxSampleValues: number;
+  private lockTimeoutMs: number;
 
   constructor(config: Record<string, unknown>) {
     const connectionString = config.connectionString as string | undefined;
@@ -68,9 +70,11 @@ export class PostgresConnector implements AskSQLConnector {
     }
     this.sql = postgres(connectionString, {
       max: (config.poolSize as number) ?? 5,
-      idle_timeout: 20,
+      idle_timeout: ((config.idleTimeoutMs as number) ?? 20000) / 1000,
       connect_timeout: ((config.connectTimeoutMs as number) ?? 10000) / 1000,
     });
+    this.maxSampleValues = (config.maxSampleValues as number) ?? 20;
+    this.lockTimeoutMs = (config.lockTimeoutMs as number) ?? 5000;
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -168,7 +172,7 @@ export class PostgresConnector implements AskSQLConnector {
 
       for (const colName of req.columns) {
         try {
-          const maxDist = req.maxDistinctValues ?? 20;
+          const maxDist = req.maxDistinctValues ?? this.maxSampleValues;
           const qualified = `${ident(req.schemaName)}.${ident(req.tableName)}`;
           const col = ident(colName);
 
@@ -234,7 +238,7 @@ export class PostgresConnector implements AskSQLConnector {
     try {
       const result = await this.sql.begin(async (tx) => {
         await tx.unsafe(`SET LOCAL statement_timeout = '${Number(timeoutMs)}'`);
-        await tx.unsafe("SET LOCAL lock_timeout = '5000'");
+        await tx.unsafe(`SET LOCAL lock_timeout = '${this.lockTimeoutMs}'`);
         await tx.unsafe("SET TRANSACTION READ ONLY");
         return await tx.unsafe(safeSql);
       }) as Record<string, unknown>[];

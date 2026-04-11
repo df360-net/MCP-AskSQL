@@ -67,6 +67,7 @@ export class MSSQLConnector implements AskSQLConnector {
 
   private pool: sql.ConnectionPool | null = null;
   private poolConfig: sql.config;
+  private maxSampleValues: number;
 
   constructor(config: Record<string, unknown>) {
     const connectionString = config.connectionString as string | undefined;
@@ -86,9 +87,10 @@ export class MSSQLConnector implements AskSQLConnector {
       pool: {
         min: 1,
         max: (config.poolSize as number) ?? 5,
-        idleTimeoutMillis: 60000,
+        idleTimeoutMillis: (config.idleTimeoutMs as number) ?? 60000,
       },
     };
+    this.maxSampleValues = (config.maxSampleValues as number) ?? 20;
   }
 
   private parseConnectionString(url: string): {
@@ -219,7 +221,7 @@ export class MSSQLConnector implements AskSQLConnector {
 
       for (const colName of req.columns) {
         try {
-          const maxDist = req.maxDistinctValues ?? 20;
+          const maxDist = req.maxDistinctValues ?? this.maxSampleValues;
           const qualified = `${ident(req.schemaName)}.${ident(req.tableName)}`;
           const col = ident(colName);
 

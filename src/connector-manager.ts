@@ -70,6 +70,7 @@ export class ConnectorManager {
       this.defaultId,
       this.cache,
       this.config.ai,
+      this.config.routing,
     );
     console.error(`[auto-router] built index for ${this.instances.size} connector(s)`);
   }
@@ -109,8 +110,15 @@ export class ConnectorManager {
       connector: {
         connectionString: c.connectionString,
         schemas: c.schemas ?? ["public"],
+        ...(c.pool?.connectTimeoutMs !== undefined && { connectTimeoutMs: c.pool.connectTimeoutMs }),
+        ...(c.pool?.idleTimeoutMs !== undefined && { idleTimeoutMs: c.pool.idleTimeoutMs }),
+        ...(c.pool?.size !== undefined && { poolSize: c.pool.size }),
+        ...(this.config.safety?.maxSampleValues !== undefined && { maxSampleValues: this.config.safety.maxSampleValues }),
+        ...(this.config.safety?.lockTimeoutMs !== undefined && { lockTimeoutMs: this.config.safety.lockTimeoutMs }),
+        ...(this.config.safety?.maxBytesBilled !== undefined && { maxBytesBilled: this.config.safety.maxBytesBilled }),
+        ...(this.config.safety?.jobPollIntervalMs !== undefined && { jobPollIntervalMs: this.config.safety.jobPollIntervalMs }),
       },
-      ai: this.config.ai,
+      ai: { ...this.config.ai, ...(this.config.safety?.aiRetries !== undefined && { maxRetries: this.config.safety.aiRetries }) },
       safety: this.config.safety,
       abbreviations: c.abbreviations,
       examples: c.examples,
@@ -199,7 +207,15 @@ export class ConnectorManager {
   }
 
   getAIConfig(): AIConfig {
-    return this.config.ai;
+    return { ...this.config.ai, ...(this.config.safety?.aiRetries !== undefined && { maxRetries: this.config.safety.aiRetries }) };
+  }
+
+  getSafetyConfig(): { maxRows: number; timeoutMs: number; maxRetries: number } {
+    return {
+      maxRows: this.config.safety?.maxRows ?? 5000,
+      timeoutMs: this.config.safety?.timeoutMs ?? 30000,
+      maxRetries: this.config.safety?.maxRetries ?? 2,
+    };
   }
 
   // ── Mutation methods (for admin API) ───────────────────────────

@@ -39,7 +39,7 @@ async function startStdio(manager: ConnectorManager, logger: QueryLogger, askCon
 }
 
 // --- HTTP transport (stateful — session per client) ---
-async function startHttp(manager: ConnectorManager, logger: QueryLogger, configStore: ConfigStore, port: number, askConfig?: AskAgentAppConfig) {
+async function startHttp(manager: ConnectorManager, logger: QueryLogger, configStore: ConfigStore, port: number, askConfig?: AskAgentAppConfig, shutdownTimeoutMs = 10000) {
   const app = express();
   app.use(express.json());
 
@@ -150,8 +150,8 @@ async function startHttp(manager: ConnectorManager, logger: QueryLogger, configS
         console.error("Shutdown complete.");
         process.exit(0);
       });
-      // Force exit after 10s if graceful shutdown stalls
-      setTimeout(() => { console.error("Forced shutdown after timeout."); process.exit(1); }, 10000).unref();
+      // Force exit if graceful shutdown stalls
+      setTimeout(() => { console.error("Forced shutdown after timeout."); process.exit(1); }, shutdownTimeoutMs).unref();
     });
   }
 }
@@ -173,7 +173,8 @@ async function main() {
   const config = loadConfig(configPath);
   const configStore = new ConfigStore(configPath);
   const manager = new ConnectorManager(config);
-  const logger = new QueryLogger(config.dataDir);
+  const maxLogFileSize = (config.logging?.maxFileSizeMb ?? 10) * 1024 * 1024;
+  const logger = new QueryLogger(config.dataDir, maxLogFileSize, config.logging?.defaultPageSize);
 
   await manager.init();
   console.error(`Loaded ${manager.listConnectors().length} connector(s)`);
@@ -191,7 +192,7 @@ async function main() {
         port = parsed;
       }
     }
-    await startHttp(manager, logger, configStore, port, config.ask);
+    await startHttp(manager, logger, configStore, port, config.ask, config.safety?.shutdownTimeoutMs);
   }
 }
 

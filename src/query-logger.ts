@@ -36,11 +36,13 @@ export interface LogStats {
 export class QueryLogger {
   private filePath: string;
   private maxFileSize: number;
+  private defaultPageSize: number;
 
-  constructor(dataDir: string, maxFileSize = 10 * 1024 * 1024) {
+  constructor(dataDir: string, maxFileSize = 10 * 1024 * 1024, defaultPageSize = 50) {
     if (!existsSync(dataDir)) mkdirSync(dataDir, { recursive: true });
     this.filePath = resolve(dataDir, "query-log.jsonl");
     this.maxFileSize = maxFileSize;
+    this.defaultPageSize = defaultPageSize;
   }
 
   log(entry: Omit<LogEntry, "id" | "timestamp">): void {
@@ -57,7 +59,7 @@ export class QueryLogger {
   query(filters: LogFilters = {}): { rows: LogEntry[]; total: number } {
     const entries = this.readAll();
     const page = filters.page ?? 0;
-    const pageSize = filters.pageSize ?? 50;
+    const pageSize = filters.pageSize ?? this.defaultPageSize;
 
     let filtered = entries;
 

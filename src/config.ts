@@ -14,6 +14,14 @@ export interface ConnectorConfig {
   abbreviations?: Record<string, string[]>;
   examples?: Array<{ question: string; sql: string }>;
   schemaPrefix?: string;
+  pool?: {
+    /** Connection timeout in milliseconds (default: 10000; Redshift default: 60000) */
+    connectTimeoutMs?: number;
+    /** Pool idle timeout in milliseconds (default: 20000) */
+    idleTimeoutMs?: number;
+    /** Max pool size (default: 5) */
+    size?: number;
+  };
 }
 
 export interface AskAgentAppConfig {
@@ -21,6 +29,8 @@ export interface AskAgentAppConfig {
   enabled?: boolean;
   /** Max AI ↔ tool round-trips before forced summary (default: 10) */
   maxTurns?: number;
+  /** Max characters for tool output before truncation (default: 2000) */
+  toolOutputMaxChars?: number;
 }
 
 export interface AppConfig {
@@ -30,12 +40,36 @@ export interface AppConfig {
     maxRows?: number;
     timeoutMs?: number;
     maxRetries?: number;
+    /** Max AI API retry attempts (default: 3) */
+    aiRetries?: number;
+    /** Graceful shutdown timeout in milliseconds (default: 10000) */
+    shutdownTimeoutMs?: number;
+    /** Max distinct sample values collected during schema discovery (default: 20) */
+    maxSampleValues?: number;
+    /** Postgres session-level lock timeout in milliseconds (default: 5000) */
+    lockTimeoutMs?: number;
+    /** BigQuery max bytes billed per query safety cap (default: "1073741824" = 1GB) */
+    maxBytesBilled?: string;
+    /** Dremio cloud job polling interval in milliseconds (default: 500) */
+    jobPollIntervalMs?: number;
   };
   /** Hours before cached schema is considered stale (default: 24). 0 = never auto-refresh. */
   schemaCacheTtlHours: number;
   dataDir: string;
   /** Agent loop config for the ask MCP tool */
   ask?: AskAgentAppConfig;
+  logging?: {
+    /** Max log file size in MB before rotation (default: 10) */
+    maxFileSizeMb?: number;
+    /** Default page size for log queries (default: 50) */
+    defaultPageSize?: number;
+  };
+  routing?: {
+    /** Minimum token length for keyword matching (default: 3) */
+    minTokenLength?: number;
+    /** Score multiplier to determine clear winner (default: 2) */
+    winnerScoreMultiplier?: number;
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -50,6 +84,11 @@ interface FileConfig {
     abbreviations?: Record<string, string[]>;
     examples?: Array<{ question: string; sql: string }>;
     schemaPrefix?: string;
+    pool?: {
+      connectTimeoutMs?: number;
+      idleTimeoutMs?: number;
+      size?: number;
+    };
   }>;
   ai: {
     baseUrl: string;
@@ -63,12 +102,27 @@ interface FileConfig {
     maxRows?: number;
     timeoutMs?: number;
     maxRetries?: number;
+    aiRetries?: number;
+    shutdownTimeoutMs?: number;
+    maxSampleValues?: number;
+    lockTimeoutMs?: number;
+    maxBytesBilled?: string;
+    jobPollIntervalMs?: number;
   };
   /** Hours before cached schema is considered stale (default: 24). 0 = never auto-refresh. */
   schemaCacheTtlHours?: number;
   ask?: {
     enabled?: boolean;
     maxTurns?: number;
+    toolOutputMaxChars?: number;
+  };
+  logging?: {
+    maxFileSizeMb?: number;
+    defaultPageSize?: number;
+  };
+  routing?: {
+    minTokenLength?: number;
+    winnerScoreMultiplier?: number;
   };
 }
 
@@ -127,10 +181,14 @@ export function loadConfig(configPath?: string): AppConfig {
     abbreviations: c.abbreviations,
     examples: c.examples,
     schemaPrefix: c.schemaPrefix,
+    pool: c.pool,
   }));
 
   const dataDir = resolve(PROJECT_ROOT, "data");
   const schemaCacheTtlHours = raw.schemaCacheTtlHours ?? 24;
 
-  return { connectors, ai, safety: raw.safety, schemaCacheTtlHours, dataDir, ask: raw.ask };
+  return {
+    connectors, ai, safety: raw.safety, schemaCacheTtlHours, dataDir,
+    ask: raw.ask, logging: raw.logging, routing: raw.routing,
+  };
 }

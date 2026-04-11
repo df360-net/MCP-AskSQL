@@ -65,7 +65,8 @@ function formatToolCallLine(toolName: string, args: Record<string, unknown>, dur
 // ---------------------------------------------------------------------------
 
 export async function askAgentLoop(config: AskAgentConfig): Promise<AskAgentResult> {
-  const { question, connectorId, manager, aiConfig, maxTurns = 10, maxRows = 100, onTurn } = config;
+  const safety = config.manager.getSafetyConfig();
+  const { question, connectorId, manager, aiConfig, maxTurns = 10, maxRows = safety.maxRows, toolOutputMaxChars = 2000, onTurn } = config;
   const ai = new AIClient(aiConfig);
   const asksql = manager.get(connectorId);
 
@@ -136,7 +137,7 @@ export async function askAgentLoop(config: AskAgentConfig): Promise<AskAgentResu
         turn,
         tool: call.function.name,
         input: args,
-        output: toolResult.length > 2000 ? toolResult.slice(0, 2000) + "... (truncated)" : toolResult,
+        output: toolResult.length > toolOutputMaxChars ? toolResult.slice(0, toolOutputMaxChars) + "... (truncated)" : toolResult,
         durationMs,
       };
       allToolCalls.push(logEntry);

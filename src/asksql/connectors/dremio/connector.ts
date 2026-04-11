@@ -89,6 +89,9 @@ export class DremioConnector implements AskSQLConnector {
 
   private config: DremioConfig;
   private sql: postgres.Sql | null = null; // Only used in local mode
+  private jobTimeoutMs: number;
+  private jobPollIntervalMs: number;
+  private maxSampleValues: number;
 
   constructor(config: Record<string, unknown>) {
     const connectionString = config.connectionString as string | undefined;
@@ -105,12 +108,16 @@ export class DremioConnector implements AskSQLConnector {
     // Initialize PG wire connection for local mode
     if (this.config.mode === "local") {
       this.sql = postgres(this.config.pgUrl, {
-        max: 3,
-        idle_timeout: 20,
-        connect_timeout: 30,
+        max: (config.poolSize as number) ?? 3,
+        idle_timeout: ((config.idleTimeoutMs as number) ?? 20000) / 1000,
+        connect_timeout: ((config.connectTimeoutMs as number) ?? 30000) / 1000,
         prepare: false, // Dremio doesn't support prepared statements
       });
     }
+
+    this.jobTimeoutMs = (config.connectTimeoutMs as number) ?? 120000;
+    this.jobPollIntervalMs = (config.jobPollIntervalMs as number) ?? 500;
+    this.maxSampleValues = (config.maxSampleValues as number) ?? 10;
   }
 
   /**
@@ -208,8 +215,8 @@ export class DremioConnector implements AskSQLConnector {
     const jobId = submitData.id;
 
     // 2. Poll for job completion
-    const maxWaitMs = 120000; // 2 minutes
-    const pollIntervalMs = 500;
+    const maxWaitMs = this.jobTimeoutMs;
+    const pollIntervalMs = this.jobPollIntervalMs;
     const startTime = Date.now();
 
     while (Date.now() - startTime < maxWaitMs) {
@@ -345,7 +352,7 @@ export class DremioConnector implements AskSQLConnector {
 
       for (const colName of req.columns) {
         try {
-          const maxDist = req.maxDistinctValues ?? 10;
+          const maxDist = req.maxDistinctValues ?? this.maxSampleValues;
           const qualified = `${ident(req.schemaName)}.${ident(req.tableName)}`;
           const col = ident(colName);
 

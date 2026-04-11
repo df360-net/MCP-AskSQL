@@ -3,7 +3,12 @@
     {
       "id": "postgres",
       "connectionString": "postgres://user:password@localhost:5432/mydb",
-      "schemas": ["public"]
+      "schemas": ["public"],
+      "pool": {
+        "connectTimeoutMs": 10000,
+        "idleTimeoutMs": 20000,
+        "size": 5
+      }
     },
     {
       "id": "mysql",
@@ -33,7 +38,10 @@
     {
       "id": "redshift",
       "connectionString": "redshift://awsuser:password@cluster.abc123.us-east-1.redshift.amazonaws.com:5439/dev",
-      "schemas": ["public"]
+      "schemas": ["public"],
+      "pool": {
+        "connectTimeoutMs": 60000
+      }
     },
     {
       "id": "databricks",
@@ -59,12 +67,29 @@
   "safety": {
     "maxRows": 5000,
     "timeoutMs": 30000,
-    "maxRetries": 2
+    "maxRetries": 2,
+    "aiRetries": 3,
+    "shutdownTimeoutMs": 10000,
+    "maxSampleValues": 20,
+    "lockTimeoutMs": 5000,
+    "maxBytesBilled": "1073741824",
+    "jobPollIntervalMs": 500
   },
   "schemaCacheTtlHours": 24,
 
   "ask": {
     "enabled": false,
-    "maxTurns": 10
+    "maxTurns": 10,
+    "toolOutputMaxChars": 2000
+  },
+
+  "logging": {
+    "maxFileSizeMb": 10,
+    "defaultPageSize": 50
+  },
+
+  "routing": {
+    "minTokenLength": 3,
+    "winnerScoreMultiplier": 2
   }
 }

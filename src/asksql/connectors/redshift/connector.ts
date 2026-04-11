@@ -76,6 +76,7 @@ export class RedshiftConnector implements AskSQLConnector {
   private client: pg.Client | null = null;
   private pgConfig: pg.ClientConfig;
   private database: string;
+  private maxSampleValues: number;
 
   constructor(config: Record<string, unknown>) {
     const connectionString = config.connectionString as string | undefined;
@@ -92,8 +93,9 @@ export class RedshiftConnector implements AskSQLConnector {
       password: parsed.password,
       database: this.database,
       ssl: { rejectUnauthorized: false },
-      connectionTimeoutMillis: 60000, // Redshift Serverless cold start can take 30-45s
+      connectionTimeoutMillis: (config.connectTimeoutMs as number) ?? 60000, // Redshift Serverless cold start can take 30-45s
     };
+    this.maxSampleValues = (config.maxSampleValues as number) ?? 10;
   }
 
   /**
@@ -249,7 +251,7 @@ export class RedshiftConnector implements AskSQLConnector {
 
       for (const colName of req.columns) {
         try {
-          const maxDist = req.maxDistinctValues ?? 10;
+          const maxDist = req.maxDistinctValues ?? this.maxSampleValues;
           const qualified = `${ident(req.schemaName)}.${ident(req.tableName)}`;
           const col = ident(colName);
 

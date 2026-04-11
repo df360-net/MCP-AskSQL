@@ -25,16 +25,25 @@ export interface RouteResult {
   candidates?: Array<{ id: string; score: number }>;
 }
 
+export interface RoutingConfig {
+  minTokenLength?: number;
+  winnerScoreMultiplier?: number;
+}
+
 export class AutoRouter {
   private indexes: SchemaIndex[] = [];
   private ai: AIClient;
   private connectorIds: string[];
   private defaultId: string;
+  private minTokenLength: number;
+  private winnerScoreMultiplier: number;
 
-  constructor(connectorIds: string[], defaultId: string, cache: SchemaCache, aiConfig: AIConfig) {
+  constructor(connectorIds: string[], defaultId: string, cache: SchemaCache, aiConfig: AIConfig, routingConfig?: RoutingConfig) {
     this.connectorIds = connectorIds;
     this.defaultId = defaultId;
     this.ai = new AIClient(aiConfig);
+    this.minTokenLength = routingConfig?.minTokenLength ?? 3;
+    this.winnerScoreMultiplier = routingConfig?.winnerScoreMultiplier ?? 2;
     this.buildIndexes(cache);
   }
 
@@ -69,7 +78,7 @@ export class AutoRouter {
           tableNames.push(`${s.schemaName}.${t.tableName}`);
           // Also add individual words from table name (e.g., "df360_app" → "df360", "app")
           for (const word of tName.split(/[_\s]+/)) {
-            if (word.length >= 3) tokens.add(word);
+            if (word.length >= this.minTokenLength) tokens.add(word);
           }
           // Add column names
           for (const c of t.columns) {
@@ -79,7 +88,7 @@ export class AutoRouter {
           // Add comment words
           if (t.tableComment) {
             for (const word of t.tableComment.toLowerCase().split(/\W+/)) {
-              if (word.length >= 3) tokens.add(word);
+              if (word.length >= this.minTokenLength) tokens.add(word);
             }
           }
         }
@@ -125,7 +134,7 @@ export class AutoRouter {
     }
 
     // Clear winner (top score > 2x second place)
-    if (scores.length >= 2 && scores[0].score > 0 && scores[0].score > scores[1].score * 2) {
+    if (scores.length >= 2 && scores[0].score > 0 && scores[0].score > scores[1].score * this.winnerScoreMultiplier) {
       return {
         connectorId: scores[0].id,
         method: "keyword",
@@ -155,7 +164,7 @@ export class AutoRouter {
     // Tokenize the question
     const questionTokens = question.toLowerCase()
       .split(/\W+/)
-      .filter((w) => w.length >= 3);
+      .filter((w) => w.length >= this.minTokenLength);
 
     const scores: Array<{ id: string; score: number }> = [];
 

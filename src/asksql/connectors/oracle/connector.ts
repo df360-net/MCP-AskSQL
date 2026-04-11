@@ -78,6 +78,8 @@ export class OracleConnector implements AskSQLConnector {
   private password: string;
   private poolSize: number;
   private connectTimeoutMs: number;
+  private idleTimeoutSec: number;
+  private maxSampleValues: number;
 
   constructor(config: Record<string, unknown>) {
     const connectionString = config.connectionString as string | undefined;
@@ -92,6 +94,8 @@ export class OracleConnector implements AskSQLConnector {
     this.connString = parsed.connectString;
     this.poolSize = (config.poolSize as number) ?? 5;
     this.connectTimeoutMs = (config.connectTimeoutMs as number) ?? 10000;
+    this.idleTimeoutSec = ((config.idleTimeoutMs as number) ?? 60000) / 1000;
+    this.maxSampleValues = (config.maxSampleValues as number) ?? 20;
   }
 
   private parseConnectionString(url: string): { user: string; password: string; connectString: string } {
@@ -117,7 +121,7 @@ export class OracleConnector implements AskSQLConnector {
         connectString: this.connString,
         poolMin: 1,
         poolMax: this.poolSize,
-        poolTimeout: 60,
+        poolTimeout: this.idleTimeoutSec,
       });
     }
     return this.pool;
@@ -244,7 +248,7 @@ export class OracleConnector implements AskSQLConnector {
 
       for (const colName of req.columns) {
         try {
-          const maxDist = req.maxDistinctValues ?? 20;
+          const maxDist = req.maxDistinctValues ?? this.maxSampleValues;
           const qualified = `${ident(req.schemaName)}.${ident(req.tableName)}`;
           const col = ident(colName);
 

@@ -72,6 +72,7 @@ export class SnowflakeConnector implements AskSQLConnector {
   private database: string;
   private warehouse: string | undefined;
   private role: string | undefined;
+  private maxSampleValues: number;
 
   constructor(config: Record<string, unknown>) {
     const connectionString = config.connectionString as string | undefined;
@@ -86,6 +87,7 @@ export class SnowflakeConnector implements AskSQLConnector {
     this.database = (config.catalog as string) ?? parsed.database;
     this.warehouse = parsed.warehouse;
     this.role = config.role as string | undefined;
+    this.maxSampleValues = (config.maxSampleValues as number) ?? 10;
   }
 
   /**
@@ -269,7 +271,7 @@ export class SnowflakeConnector implements AskSQLConnector {
 
       for (const colName of req.columns) {
         try {
-          const maxDist = req.maxDistinctValues ?? 10;
+          const maxDist = req.maxDistinctValues ?? this.maxSampleValues;
           const qualified = `${ident(req.schemaName)}.${ident(req.tableName)}`;
           const col = ident(colName);
 

@@ -13,6 +13,9 @@ export function registerTools(
 ): void {
   const askAgentEnabled = askConfig?.enabled ?? false;
   const askAgentMaxTurns = askConfig?.maxTurns ?? 10;
+  const askToolOutputMaxChars = askConfig?.toolOutputMaxChars;
+  const safety = manager.getSafetyConfig();
+
   // Tool 1: ask
   server.tool(
     "ask",
@@ -20,7 +23,7 @@ export function registerTools(
     {
       question: z.string().describe("Natural language question (e.g., 'show me all users with orders > $1000')"),
       connector: z.string().optional().describe("Connector ID (uses default if omitted)"),
-      maxRows: z.number().optional().describe("Maximum rows to return (default 100)"),
+      maxRows: z.number().optional().describe("Maximum rows to return (uses config safety.maxRows if omitted)"),
     },
     async ({ question, connector, maxRows }) => {
       const start = Date.now();
@@ -43,7 +46,8 @@ export function registerTools(
             manager,
             aiConfig: manager.getAIConfig(),
             maxTurns: askAgentMaxTurns,
-            maxRows: maxRows ?? 100,
+            maxRows: maxRows ?? safety.maxRows,
+            toolOutputMaxChars: askToolOutputMaxChars,
           });
           logger?.log({
             tool: "ask",
@@ -61,7 +65,7 @@ export function registerTools(
 
         // ── Original single-shot path ──
         const asksql = manager.get(resolvedConnector);
-        const result = await asksql.ask(question, { maxRows: maxRows ?? 100 });
+        const result = await asksql.ask(question, { maxRows: maxRows ?? safety.maxRows });
         logger?.log({
           tool: "ask",
           connector: resolvedConnector ?? "default",
@@ -135,13 +139,13 @@ export function registerTools(
     {
       sql: z.string().describe("SQL query to execute"),
       connector: z.string().optional().describe("Connector ID (optional)"),
-      maxRows: z.number().optional().describe("Maximum rows to return (default 100)"),
+      maxRows: z.number().optional().describe("Maximum rows to return (uses config safety.maxRows if omitted)"),
     },
     async ({ sql, connector, maxRows }) => {
       const start = Date.now();
       try {
         const asksql = manager.get(connector);
-        const result = await asksql.executeSQL(sql, { maxRows: maxRows ?? 100 });
+        const result = await asksql.executeSQL(sql, { maxRows: maxRows ?? safety.maxRows });
         logger?.log({ tool: "execute_sql", connector: connector ?? "default", sql, success: true, executionTimeMs: Date.now() - start, rowCount: result.rowCount });
         return {
           content: [{ type: "text", text: JSON.stringify(result, null, 2) }],

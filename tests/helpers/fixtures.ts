@@ -185,6 +185,7 @@ export function createMockConnectorManager() {
     getSchemaInfo: vi.fn().mockReturnValue({ tables: 3, columns: 8, tableNames: ["df360.df360_app", "df360.df360_data_element", "df360.df360_support_group"], cacheAgeHours: 2.1 }),
     getSchemaDetail: vi.fn().mockReturnValue(MOCK_DISCOVERED_DB_PG),
     getAIConfig: vi.fn().mockReturnValue({ baseUrl: "https://api.example.com/v1", apiKey: "sk-test-key-1234567890", model: "test-model", maxTokens: 4096, temperature: 0.3 }),
+    getSafetyConfig: vi.fn().mockReturnValue({ maxRows: 5000, timeoutMs: 30000, maxRetries: 2 }),
     routeQuestion: vi.fn().mockResolvedValue({ connectorId: "pg_test", method: "keyword", confidence: "3 keyword matches" }),
     refreshSchema: vi.fn().mockResolvedValue({ connector: "pg_test", tables: 5, columns: 20 }),
     addConnector: vi.fn().mockResolvedValue({ id: "new_conn", type: "mysql", schemas: ["public"], isDefault: false, cached: false, cacheAgeHours: null }),
