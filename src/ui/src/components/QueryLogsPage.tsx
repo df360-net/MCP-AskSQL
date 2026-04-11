@@ -35,11 +35,13 @@ export function QueryLogsPage() {
   const [promptData, setPromptData] = useState<{ entryId: string; systemPrompt: string; userMessage: string } | null>(null);
   const [explanationData, setExplanationData] = useState<{ entryId: string; explanation: string } | null>(null);
   const [toolCallsData, setToolCallsData] = useState<{ entryId: string; toolCalls: Array<{ turn: number; tool: string; input: Record<string, unknown>; output: string; durationMs: number }> } | null>(null);
+  const [answerData, setAnswerData] = useState<{ entryId: string; answer: string } | null>(null);
   const [pdfBusy, setPdfBusy] = useState(false);
   const rerunRef = useRef<HTMLDivElement>(null);
   const promptRef = useRef<HTMLDivElement>(null);
   const explanationRef = useRef<HTMLDivElement>(null);
   const toolCallsRef = useRef<HTMLDivElement>(null);
+  const answerRef = useRef<HTMLDivElement>(null);
   const pageSize = 10;
 
   const params = new URLSearchParams();
@@ -61,6 +63,7 @@ export function QueryLogsPage() {
     setPromptData(null);
     setExplanationData(null);
     setToolCallsData(null);
+    setAnswerData(null);
   };
 
   const handleClear = async () => {
@@ -72,6 +75,7 @@ export function QueryLogsPage() {
     setPromptData(null);
     setExplanationData(null);
     setToolCallsData(null);
+    setAnswerData(null);
   };
 
   const handleRerun = async (entry: LogEntry) => {
@@ -181,28 +185,29 @@ export function QueryLogsPage() {
                   {entry.sql && <div><strong>SQL:</strong> <code>{entry.sql}</code></div>}
                   {entry.error && <div className="error-msg"><strong>Error:</strong> {entry.error}</div>}
                   <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                    {entry.explanation && (
+                    {(entry.explanation || (entry.toolCalls && entry.toolCalls.length > 0)) && (
                       <button
                         className="prompt-reconstruct-btn"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setExplanationData({ entryId: entry.id, explanation: entry.explanation! });
+                          setExplanationData({ entryId: entry.id, explanation: entry.explanation ?? "" });
+                          setToolCallsData({ entryId: entry.id, toolCalls: entry.toolCalls ?? [] });
                           setTimeout(() => explanationRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
                         }}
                       >
-                        Level 2 AI Explanation
+                        Level1 &amp; Level2 AI Interactions
                       </button>
                     )}
-                    {entry.toolCalls && entry.toolCalls.length > 0 && (
+                    {entry.answer && (
                       <button
                         className="prompt-reconstruct-btn"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setToolCallsData({ entryId: entry.id, toolCalls: entry.toolCalls! });
-                          setTimeout(() => toolCallsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+                          setAnswerData({ entryId: entry.id, answer: entry.answer! });
+                          setTimeout(() => answerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
                         }}
                       >
-                        To Level1 AI Calls ({entry.toolCalls.length})
+                        Final Output
                       </button>
                     )}
                     <button
@@ -313,20 +318,79 @@ export function QueryLogsPage() {
           )}
         </div>
       )}
-      {/* Level 2 AI Explanation section */}
-      {explanationData && (
+      {/* Level1 & Level2 AI Interactions (merged view) */}
+      {explanationData && toolCallsData && (
         <div className="rerun-result" ref={explanationRef}>
           <div className="rerun-header">
-            <h3>Level 2 AI Explanation</h3>
-            <button onClick={() => setExplanationData(null)}>Close</button>
+            <h3>Level1 &amp; Level2 AI Interactions</h3>
+            <button onClick={() => { setExplanationData(null); setToolCallsData(null); }}>Close</button>
+          </div>
+          {(() => {
+            // Parse explanation into per-turn reasoning blocks
+            const turnReasonings = new Map<number, string>();
+            if (explanationData.explanation) {
+              const parts = explanationData.explanation.split(/\*\*Turn \d+\*\*:\s*/);
+              const turnNums = [...explanationData.explanation.matchAll(/\*\*Turn (\d+)\*\*/g)];
+              for (let idx = 0; idx < turnNums.length; idx++) {
+                const turnNum = parseInt(turnNums[idx][1], 10) - 1; // 0-based
+                let text = (parts[idx + 1] ?? "").trim();
+                // Remove the tool call line (-> ask_sql: ... ) from reasoning text
+                text = text.replace(/\n\s*->.*$/s, "").trim();
+                if (text) turnReasonings.set(turnNum, text);
+              }
+            }
+
+            return toolCallsData.toolCalls.map((tc, i) => (
+              <div key={i} style={{ marginBottom: 16, padding: "10px 14px", borderLeft: "3px solid #60a5fa", background: "rgba(96,165,250,0.05)" }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}>
+                  <span className="badge green" style={{ fontSize: 11 }}>Turn {tc.turn + 1}</span>
+                  <strong>{tc.tool}</strong>
+                  <span style={{ color: "#94a3b8", fontSize: 12 }}>{tc.durationMs}ms</span>
+                </div>
+                {turnReasonings.has(tc.turn) && (
+                  <div style={{ margin: "6px 0", fontSize: 12, color: "#1a1a1a" }}>
+                    <strong>Level2 AI Reasoning:</strong> {turnReasonings.get(tc.turn)}
+                  </div>
+                )}
+                {tc.tool === "ask_sql" && tc.input.question && (
+                  <div style={{ margin: "6px 0", fontSize: 12, color: "#1a1a1a" }}>
+                    <strong>Level2 AI to Level1 AI question:</strong> {String(tc.input.question)}
+                  </div>
+                )}
+                {tc.tool === "query" && tc.input.sql && (
+                  <div style={{ margin: "6px 0", fontSize: 12, color: "#1a1a1a" }}>
+                    <strong>Level2 AI direct SQL:</strong> <code style={{ fontSize: 11 }}>{String(tc.input.sql)}</code>
+                  </div>
+                )}
+                {tc.sql && (
+                  <div style={{ margin: "6px 0", fontSize: 12, color: "#1a1a1a" }}>
+                    <strong>Level1 AI SQL:</strong> <code style={{ fontSize: 11 }}>{tc.sql}</code>
+                  </div>
+                )}
+                {tc.sqlSuccess !== undefined && (
+                  <div style={{ margin: "6px 0", fontSize: 12, color: "#1a1a1a" }}>
+                    <strong>SQL Execution Status:</strong> {tc.sqlSuccess ? "Success" : "Failed"}
+                  </div>
+                )}
+              </div>
+            ));
+          })()}
+        </div>
+      )}
+      {/* Final Output section */}
+      {answerData && (
+        <div className="rerun-result" ref={answerRef}>
+          <div className="rerun-header">
+            <h3>Final Output</h3>
+            <button onClick={() => setAnswerData(null)}>Close</button>
           </div>
           <div style={{ marginBottom: 12 }}>
             <div className="prompt-wrapper">
               <div style={{ display: "flex", gap: 4, position: "absolute", top: 8, right: 12 }}>
                 <button
                   className="prompt-copy-btn"
-                  title="Copy Explanation"
-                  onClick={() => { navigator.clipboard.writeText(explanationData.explanation).catch(() => {}); }}
+                  title="Copy Final Output"
+                  onClick={() => { navigator.clipboard.writeText(answerData.answer).catch(() => {}); }}
                 >
                   <svg width="14" height="14" fill="none" stroke="#fff" viewBox="0 0 24 24">
                     <rect x="9" y="9" width="13" height="13" rx="2" strokeWidth={2} />
@@ -339,7 +403,7 @@ export function QueryLogsPage() {
                   disabled={pdfBusy}
                   onClick={async () => {
                     setPdfBusy(true);
-                    try { await downloadPdf(explanationData.explanation); } finally { setPdfBusy(false); }
+                    try { await downloadPdf(answerData.answer); } finally { setPdfBusy(false); }
                   }}
                 >
                   {pdfBusy ? (
@@ -355,50 +419,9 @@ export function QueryLogsPage() {
                   )}
                 </button>
               </div>
-              <pre className="prompt-display">{explanationData.explanation}</pre>
+              <pre className="prompt-display">{answerData.answer}</pre>
             </div>
           </div>
-        </div>
-      )}
-      {/* Tool Calls section */}
-      {toolCallsData && (
-        <div className="rerun-result" ref={toolCallsRef}>
-          <div className="rerun-header">
-            <h3>To Level1 AI Calls ({toolCallsData.toolCalls.length})</h3>
-            <button onClick={() => setToolCallsData(null)}>Close</button>
-          </div>
-          {toolCallsData.toolCalls.map((tc, i) => (
-            <div key={i} className="tool-call-entry" style={{ marginBottom: 12, padding: "8px 12px", borderLeft: "3px solid #60a5fa", background: "rgba(96,165,250,0.05)" }}>
-              <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 4 }}>
-                <span className="badge green" style={{ fontSize: 11 }}>Turn {tc.turn + 1}</span>
-                <strong>{tc.tool}</strong>
-                <span style={{ color: "#94a3b8", fontSize: 12 }}>{tc.durationMs}ms</span>
-                {tc.sqlSuccess !== undefined && (
-                  <span className={`badge ${tc.sqlSuccess ? "green" : "red"}`} style={{ fontSize: 10 }}>{tc.sqlSuccess ? "OK" : "FAIL"}</span>
-                )}
-              </div>
-              {tc.tool === "ask_sql" && tc.input.question && (
-                <div style={{ margin: "4px 0", fontSize: 12, color: "#1a1a1a" }}>
-                  <strong>Level2 AI question:</strong> {String(tc.input.question)}
-                </div>
-              )}
-              {tc.tool === "query" && tc.input.sql && (
-                <div style={{ margin: "4px 0", fontSize: 12, color: "#1a1a1a" }}>
-                  <strong>Level2 AI SQL:</strong> <code style={{ fontSize: 11 }}>{String(tc.input.sql)}</code>
-                </div>
-              )}
-              {tc.sql && (
-                <div style={{ margin: "4px 0", fontSize: 12, color: "#1a1a1a" }}>
-                  <strong>Level1 AI SQL:</strong> <code style={{ fontSize: 11 }}>{tc.sql}</code>
-                </div>
-              )}
-              {tc.sqlSuccess !== undefined && (
-                <div style={{ margin: "4px 0", fontSize: 12, color: "#1a1a1a" }}>
-                  <strong>SQL Execution Status:</strong> {tc.sqlSuccess ? "Success" : "Failed"}
-                </div>
-              )}
-            </div>
-          ))}
         </div>
       )}
     </div>
