@@ -337,6 +337,11 @@ export function NLQueryPage() {
                       {tc.sqlSuccess !== undefined && (
                         <span className={`badge ${tc.sqlSuccess ? "green" : "red"}`} style={{ fontSize: 10, marginLeft: 4 }}>{tc.sqlSuccess ? "OK" : "FAIL"}</span>
                       )}
+                      {tc.tool === "list_tables" && (
+                        <div style={{ margin: "4px 0", fontSize: 12 }}>
+                          <strong>Internal Function Call:</strong> returning the connector schema definition to Level 2 AI.
+                        </div>
+                      )}
                       {tc.tool === "ask_sql" && tc.input.question && (
                         <div style={{ margin: "4px 0", fontSize: 12 }}>
                           <strong>Level2 AI question:</strong> {String(tc.input.question)}
