@@ -1,6 +1,16 @@
 import { useState, useRef } from "react";
-import { useFetch, apiPost, apiDelete } from "../hooks/useApi.js";
+import { useFetch, apiDelete } from "../hooks/useApi.js";
 import type { Workflow, WorkflowRunResult, ConnectorInfo } from "../types.js";
+
+interface StepProgress {
+  order: number;
+  title: string;
+  status: "pending" | "running" | "done";
+  success?: boolean;
+  error?: string;
+  rowCount?: number;
+  executionTimeMs?: number;
+}
 
 async function downloadPdf(markdown: string) {
   const res = await fetch("/api/render-pdf", {
@@ -27,6 +37,8 @@ export function WorkflowsPage() {
   const { data: connectors } = useFetch<ConnectorInfo[]>("/api/connectors");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [running, setRunning] = useState<string | null>(null);
+  const [stepProgress, setStepProgress] = useState<StepProgress[]>([]);
+  const [summarizing, setSummarizing] = useState(false);
   const [runResult, setRunResult] = useState<WorkflowRunResult | null>(null);
   const [pdfBusy, setPdfBusy] = useState(false);
   const resultRef = useRef<HTMLDivElement>(null);
@@ -50,10 +62,64 @@ export function WorkflowsPage() {
   const handleRun = async (wf: Workflow) => {
     setRunning(wf.id);
     setRunResult(null);
+    setSummarizing(false);
+
+    // Initialize progress for all steps
+    setStepProgress(wf.steps.map((s) => ({ order: s.order, title: s.title, status: "pending" })));
+
     try {
-      const result = await apiPost<WorkflowRunResult>(`/api/workflows/${wf.id}/run`, { summarize: true });
-      setRunResult(result);
-      setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+      const response = await fetch(`/api/workflows/${wf.id}/run`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ summarize: true }),
+      });
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("No response body");
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const event = JSON.parse(line.slice(6));
+
+            if (event.type === "step-start") {
+              setStepProgress((prev) => prev.map((s) =>
+                s.order === event.order ? { ...s, status: "running" } : s
+              ));
+            } else if (event.type === "step-done") {
+              setStepProgress((prev) => prev.map((s) =>
+                s.order === event.order ? {
+                  ...s,
+                  status: "done",
+                  success: event.success,
+                  error: event.error,
+                  rowCount: event.rowCount,
+                  executionTimeMs: event.executionTimeMs,
+                } : s
+              ));
+            } else if (event.type === "summarizing") {
+              setSummarizing(true);
+            } else if (event.type === "result") {
+              setSummarizing(false);
+              setRunResult(event as WorkflowRunResult);
+              setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+            } else if (event.type === "error") {
+              alert(event.error);
+            }
+          } catch { /* ignore parse errors */ }
+        }
+      }
     } catch (err) {
       alert(err instanceof Error ? err.message : String(err));
     } finally {
@@ -140,7 +206,7 @@ export function WorkflowsPage() {
                       <div style={{ display: "flex", gap: 6 }} onClick={(e) => e.stopPropagation()}>
                         <button
                           className="btn"
-                          style={{ fontSize: 12, padding: "4px 12px" }}
+                          style={{ fontSize: 12, padding: "4px 12px", background: "linear-gradient(135deg, #3b82f6, #2563eb)", color: "#fff" }}
                           disabled={running === wf.id}
                           onClick={() => handleRun(wf)}
                         >
@@ -157,8 +223,46 @@ export function WorkflowsPage() {
                     </div>
                   </div>
 
+                  {/* Live progress (shown inline below the card while running) */}
+                  {running === wf.id && stepProgress.length > 0 && (
+                    <div style={{ padding: "12px 16px", background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
+                      {stepProgress.map((sp) => (
+                        <div key={sp.order} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", fontSize: 13 }}>
+                          {sp.status === "pending" && (
+                            <span style={{ color: "#94a3b8", width: 18, textAlign: "center" }}>&#9675;</span>
+                          )}
+                          {sp.status === "running" && (
+                            <span style={{ color: "#3b82f6", width: 18, textAlign: "center", animation: "pulse 1s infinite" }}>&#9679;</span>
+                          )}
+                          {sp.status === "done" && sp.success && (
+                            <span className="badge green" style={{ fontSize: 10, minWidth: 18 }}>OK</span>
+                          )}
+                          {sp.status === "done" && !sp.success && (
+                            <span className="badge red" style={{ fontSize: 10, minWidth: 18 }}>FAIL</span>
+                          )}
+                          <strong>Step {sp.order}:</strong>
+                          <span style={{ flex: 1 }}>{sp.title}</span>
+                          {sp.status === "running" && (
+                            <span style={{ color: "#3b82f6", fontSize: 12, fontStyle: "italic" }}>Running...</span>
+                          )}
+                          {sp.status === "done" && (
+                            <span style={{ color: "#94a3b8", fontSize: 12 }}>
+                              {sp.rowCount} row(s) | {sp.executionTimeMs}ms
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                      {summarizing && (
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0 4px", fontSize: 13, color: "#3b82f6", fontStyle: "italic" }}>
+                          <span style={{ width: 18, textAlign: "center", animation: "pulse 1s infinite" }}>&#9679;</span>
+                          AI is summarizing the results...
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* Expanded detail */}
-                  {expandedId === wf.id && (
+                  {expandedId === wf.id && !running && (
                     <div style={{ padding: "12px 16px 16px", background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
                       {wf.description && (
                         <div style={{ marginBottom: 12, fontSize: 13, color: "#475569" }}>
@@ -195,7 +299,7 @@ export function WorkflowsPage() {
       ))}
 
       {/* Run result section */}
-      {runResult && (
+      {runResult && !running && (
         <div className="rerun-result" ref={resultRef}>
           <div className="rerun-header">
             <h3>Workflow Run: {runResult.workflowName}</h3>

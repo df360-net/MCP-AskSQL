@@ -409,9 +409,10 @@ export function QueryLogsPage() {
           </div>
           <div style={{ marginBottom: 12 }}>
             <div className="prompt-wrapper">
-              <div style={{ display: "flex", gap: 4, position: "absolute", top: 8, right: 12 }}>
+              <div style={{ display: "flex", gap: 4, position: "absolute", top: 8, right: 12, zIndex: 1 }}>
                 <button
                   className="prompt-copy-btn"
+                  style={{ position: "static" }}
                   title="Copy Final Output"
                   onClick={() => { navigator.clipboard.writeText(answerData.answer).catch(() => {}); }}
                 >
@@ -422,6 +423,7 @@ export function QueryLogsPage() {
                 </button>
                 <button
                   className="prompt-copy-btn"
+                  style={{ position: "static" }}
                   title="Download as PDF"
                   disabled={pdfBusy}
                   onClick={async () => {

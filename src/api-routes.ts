@@ -463,6 +463,13 @@ export function createApiRouter(
       const maxRows = Math.min(Math.max(1, Number(req.body.maxRows) || safety.maxRows), safety.maxRows);
       const start = Date.now();
 
+      // SSE streaming
+      res.writeHead(200, {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      });
+
       const stepResults: Array<{
         order: number; title: string; sql: string;
         success: boolean; error?: string;
@@ -473,25 +480,34 @@ export function createApiRouter(
         const asksql = manager.get(wf.connector);
 
         for (const step of wf.steps) {
+          // Notify: step starting
+          res.write(`data: ${JSON.stringify({ type: "step-start", order: step.order, title: step.title })}\n\n`);
+
           const stepStart = Date.now();
           try {
             const result = await asksql.executeSQL(step.sql, { maxRows });
-            stepResults.push({
+            const sr = {
               order: step.order, title: step.title, sql: step.sql,
               success: true, rows: result.rows, rowCount: result.rowCount,
               executionTimeMs: Date.now() - stepStart,
-            });
+            };
+            stepResults.push(sr);
+            res.write(`data: ${JSON.stringify({ type: "step-done", ...sr })}\n\n`);
           } catch (err) {
-            stepResults.push({
+            const sr = {
               order: step.order, title: step.title, sql: step.sql,
               success: false, error: err instanceof Error ? err.message : String(err),
-              rows: [], rowCount: 0, executionTimeMs: Date.now() - stepStart,
-            });
+              rows: [] as Record<string, unknown>[], rowCount: 0, executionTimeMs: Date.now() - stepStart,
+            };
+            stepResults.push(sr);
+            res.write(`data: ${JSON.stringify({ type: "step-done", ...sr })}\n\n`);
           }
         }
 
         let summary: string | undefined;
         if (summarize) {
+          res.write(`data: ${JSON.stringify({ type: "summarizing" })}\n\n`);
+
           const datasetsText = stepResults.map((sr) => {
             if (!sr.success) return `## Dataset ${sr.order}: ${sr.title}\nSQL execution failed: ${sr.error}`;
             const header = Object.keys(sr.rows[0] ?? {}).join(" | ");
@@ -528,16 +544,20 @@ SUMMARIZE a well-structured markdown report.`;
           }
         }
 
-        res.json({
+        res.write(`data: ${JSON.stringify({
+          type: "result",
           workflowId: wf.id,
           workflowName: wf.name,
           connector: wf.connector,
           executionTimeMs: Date.now() - start,
           steps: stepResults,
           summary,
-        });
+        })}\n\n`);
+
+        res.end();
       } catch (err) {
-        res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+        res.write(`data: ${JSON.stringify({ type: "error", error: err instanceof Error ? err.message : String(err) })}\n\n`);
+        res.end();
       }
     });
   }
