@@ -55,6 +55,7 @@ export function registerTools(
             question,
             success: agentResult.success,
             executionTimeMs: Date.now() - start,
+            explanation: agentResult.explanation || undefined,
           });
           console.error(`[ask-agent] ${agentResult.turns} turns, ${agentResult.toolCalls.length} tool calls, ${agentResult.tokenUsage.totalTokens} tokens`);
           return {

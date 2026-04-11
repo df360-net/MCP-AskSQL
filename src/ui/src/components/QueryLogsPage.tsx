@@ -13,8 +13,10 @@ export function QueryLogsPage() {
   const [rerunResult, setRerunResult] = useState<{ entryId: string; sql: string; connector: string; data?: RerunResult; error?: string } | null>(null);
   const [promptLoading, setPromptLoading] = useState<string | null>(null);
   const [promptData, setPromptData] = useState<{ entryId: string; systemPrompt: string; userMessage: string } | null>(null);
+  const [explanationData, setExplanationData] = useState<{ entryId: string; explanation: string } | null>(null);
   const rerunRef = useRef<HTMLDivElement>(null);
   const promptRef = useRef<HTMLDivElement>(null);
+  const explanationRef = useRef<HTMLDivElement>(null);
   const pageSize = 10;
 
   const params = new URLSearchParams();
@@ -34,6 +36,7 @@ export function QueryLogsPage() {
     refetchStats();
     setRerunResult(null);
     setPromptData(null);
+    setExplanationData(null);
   };
 
   const handleClear = async () => {
@@ -43,6 +46,7 @@ export function QueryLogsPage() {
     refetchStats();
     setRerunResult(null);
     setPromptData(null);
+    setExplanationData(null);
   };
 
   const handleRerun = async (entry: LogEntry) => {
@@ -151,13 +155,27 @@ export function QueryLogsPage() {
                   {entry.question && <div><strong>Question:</strong> {entry.question}</div>}
                   {entry.sql && <div><strong>SQL:</strong> <code>{entry.sql}</code></div>}
                   {entry.error && <div className="error-msg"><strong>Error:</strong> {entry.error}</div>}
-                  <button
-                    className="prompt-reconstruct-btn"
-                    disabled={promptLoading === entry.id}
-                    onClick={(e) => { e.stopPropagation(); handlePrompt(entry); }}
-                  >
-                    {promptLoading === entry.id ? "Loading..." : "Reconstruct AI Prompt"}
-                  </button>
+                  <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                    <button
+                      className="prompt-reconstruct-btn"
+                      disabled={promptLoading === entry.id}
+                      onClick={(e) => { e.stopPropagation(); handlePrompt(entry); }}
+                    >
+                      {promptLoading === entry.id ? "Loading..." : "Reconstruct AI Prompt"}
+                    </button>
+                    {entry.explanation && (
+                      <button
+                        className="prompt-reconstruct-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setExplanationData({ entryId: entry.id, explanation: entry.explanation! });
+                          setTimeout(() => explanationRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+                        }}
+                      >
+                        Level 2 AI Explanation
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             )}
@@ -256,6 +274,30 @@ export function QueryLogsPage() {
               <pre className="prompt-display">{promptData.userMessage}</pre>
             </div>
           )}
+        </div>
+      )}
+      {/* Level 2 AI Explanation section */}
+      {explanationData && (
+        <div className="rerun-result" ref={explanationRef}>
+          <div className="rerun-header">
+            <h3>Level 2 AI Explanation</h3>
+            <button onClick={() => setExplanationData(null)}>Close</button>
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <div className="prompt-wrapper">
+              <button
+                className="prompt-copy-btn"
+                title="Copy Explanation"
+                onClick={() => { navigator.clipboard.writeText(explanationData.explanation).catch(() => {}); }}
+              >
+                <svg width="14" height="14" fill="none" stroke="#fff" viewBox="0 0 24 24">
+                  <rect x="9" y="9" width="13" height="13" rx="2" strokeWidth={2} />
+                  <path strokeWidth={2} d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+                </svg>
+              </button>
+              <pre className="prompt-display">{explanationData.explanation}</pre>
+            </div>
+          </div>
         </div>
       )}
     </div>

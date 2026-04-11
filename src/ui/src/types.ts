@@ -49,6 +49,8 @@ export interface LogEntry {
   error?: string;
   executionTimeMs: number;
   rowCount?: number;
+  /** Level 2 agent loop explanation (turn-by-turn reasoning) */
+  explanation?: string;
 }
 
 export interface LogStats {
