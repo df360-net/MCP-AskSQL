@@ -5,12 +5,13 @@ import { NLQueryPage } from "./components/NLQueryPage.js";
 import { ConnectorsPage } from "./components/ConnectorsPage.js";
 import { AIProviderPage } from "./components/AIProviderPage.js";
 import { QueryLogsPage } from "./components/QueryLogsPage.js";
+import { WorkflowsPage } from "./components/WorkflowsPage.js";
 
-type Page = "query" | "connectors" | "ai" | "logs";
+type Page = "query" | "workflows" | "connectors" | "ai" | "logs";
 
 function getPage(): Page {
   const hash = window.location.hash.replace("#", "");
-  if (hash === "connectors" || hash === "ai" || hash === "logs") return hash;
+  if (hash === "workflows" || hash === "connectors" || hash === "ai" || hash === "logs") return hash;
   return "query";
 }
 
@@ -53,6 +54,10 @@ export function App() {
             <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
             NL Query
           </button>
+          <button className={page === "workflows" ? "active" : ""} onClick={() => nav("workflows")}>
+            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 6v12" /></svg>
+            Workflows
+          </button>
           <button className={page === "connectors" ? "active" : ""} onClick={() => nav("connectors")}>
             <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
             Connectors
@@ -69,6 +74,7 @@ export function App() {
 
         <main className="content">
           {page === "query" && <NLQueryPage />}
+          {page === "workflows" && <WorkflowsPage />}
           {page === "connectors" && <ConnectorsPage />}
           {page === "ai" && <AIProviderPage />}
           {page === "logs" && <QueryLogsPage />}

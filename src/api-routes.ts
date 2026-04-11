@@ -3,6 +3,7 @@ import type { ConnectorManager } from "./connector-manager.js";
 import type { ConnectorConfig, AskAgentAppConfig } from "./config.js";
 import type { ConfigStore } from "./config-store.js";
 import type { QueryLogger } from "./query-logger.js";
+import type { WorkflowStore } from "./workflow-store.js";
 import { AIClient, type AIConfig } from "./asksql/core/ai/client.js";
 import { askAgentLoop } from "./ask/agent-loop.js";
 import type { AgentStreamEvent } from "./ask/types.js";
@@ -22,6 +23,7 @@ export function createApiRouter(
   configStore: ConfigStore,
   logger: QueryLogger,
   askConfig?: AskAgentAppConfig,
+  workflowStore?: WorkflowStore,
 ): Router {
   const askAgentEnabled = askConfig?.enabled ?? false;
   const askAgentMaxTurns = askConfig?.maxTurns ?? 10;
@@ -390,7 +392,7 @@ export function createApiRouter(
           pdf_options: { format: "A4", margin: { top: "20mm", bottom: "20mm", left: "15mm", right: "15mm" } },
           css: `
             body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 13px; color: #1a1a2e; line-height: 1.6; }
-            h1 { color: #e94560; border-bottom: 2px solid #e94560; padding-bottom: 6px; }
+            h1 { color: #1a1a2e; border-bottom: 2px solid #1a1a2e; padding-bottom: 6px; }
             h2 { color: #16213e; margin-top: 24px; }
             h3 { color: #0f3460; }
             table { border-collapse: collapse; width: 100%; margin: 12px 0; }
@@ -414,6 +416,131 @@ export function createApiRouter(
       res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
     }
   });
+
+  // ── Workflows ───────────────────────────────────────────
+
+  if (workflowStore) {
+    router.get("/workflows", (_req, res) => {
+      res.json(workflowStore.list());
+    });
+
+    router.get("/workflows/:id", (req, res) => {
+      const wf = workflowStore.get(req.params.id);
+      if (!wf) { res.status(404).json({ error: "Workflow not found" }); return; }
+      res.json(wf);
+    });
+
+    router.post("/workflows", (req, res) => {
+      try {
+        const { name, description, connector, originalQuestion, aiReasoning, steps } = req.body;
+        if (!name || !connector || !steps?.length) {
+          res.status(400).json({ error: "name, connector, and steps are required" }); return;
+        }
+        const wf = workflowStore.create({ name, description, connector, originalQuestion: originalQuestion ?? "", aiReasoning, steps });
+        res.status(201).json(wf);
+      } catch (err) {
+        res.status(400).json({ error: err instanceof Error ? err.message : String(err) });
+      }
+    });
+
+    router.put("/workflows/:id", (req, res) => {
+      const wf = workflowStore.update(req.params.id, req.body);
+      if (!wf) { res.status(404).json({ error: "Workflow not found" }); return; }
+      res.json(wf);
+    });
+
+    router.delete("/workflows/:id", (req, res) => {
+      const ok = workflowStore.delete(req.params.id);
+      if (!ok) { res.status(404).json({ error: "Workflow not found" }); return; }
+      res.json({ ok: true });
+    });
+
+    router.post("/workflows/:id/run", async (req, res) => {
+      const wf = workflowStore.get(req.params.id);
+      if (!wf) { res.status(404).json({ error: "Workflow not found" }); return; }
+
+      const summarize = req.body.summarize !== false;
+      const maxRows = Math.min(Math.max(1, Number(req.body.maxRows) || safety.maxRows), safety.maxRows);
+      const start = Date.now();
+
+      const stepResults: Array<{
+        order: number; title: string; sql: string;
+        success: boolean; error?: string;
+        rows: Record<string, unknown>[]; rowCount: number; executionTimeMs: number;
+      }> = [];
+
+      try {
+        const asksql = manager.get(wf.connector);
+
+        for (const step of wf.steps) {
+          const stepStart = Date.now();
+          try {
+            const result = await asksql.executeSQL(step.sql, { maxRows });
+            stepResults.push({
+              order: step.order, title: step.title, sql: step.sql,
+              success: true, rows: result.rows, rowCount: result.rowCount,
+              executionTimeMs: Date.now() - stepStart,
+            });
+          } catch (err) {
+            stepResults.push({
+              order: step.order, title: step.title, sql: step.sql,
+              success: false, error: err instanceof Error ? err.message : String(err),
+              rows: [], rowCount: 0, executionTimeMs: Date.now() - stepStart,
+            });
+          }
+        }
+
+        let summary: string | undefined;
+        if (summarize) {
+          const datasetsText = stepResults.map((sr) => {
+            if (!sr.success) return `## Dataset ${sr.order}: ${sr.title}\nSQL execution failed: ${sr.error}`;
+            const header = Object.keys(sr.rows[0] ?? {}).join(" | ");
+            const rows = sr.rows.slice(0, 100).map((r) => Object.values(r).map((v) => v === null ? "NULL" : String(v)).join(" | ")).join("\n");
+            return `## Dataset ${sr.order}: ${sr.title}\n${sr.rowCount} row(s)\n\n${header}\n${rows}`;
+          }).join("\n\n---\n\n");
+
+          const reasoningContext = wf.aiReasoning ? `\n\nThe original analytical reasoning was:\n${wf.aiReasoning}` : "";
+
+          // Get schema context for richer analysis
+          let schemaContext = "";
+          try {
+            const asksqlForSchema = manager.get(wf.connector);
+            schemaContext = `\nThis is the schema of the database:\n${asksqlForSchema.getSchemaContext()}\n\n`;
+          } catch { /* ignore if schema unavailable */ }
+
+          const prompt = `You are a senior data analyst.${schemaContext}The user asked: "${wf.originalQuestion}"${reasoningContext}
+
+You have been given the results of ${stepResults.length} SQL queries. Analyze the data and produce a comprehensive markdown report with insights, comparisons, and key findings.
+
+${datasetsText}
+
+SUMMARIZE a well-structured markdown report.`;
+
+          const ai = new AIClient(manager.getAIConfig());
+          console.error(`[workflow-run] Sending summarization prompt (${prompt.length} chars) to AI...`);
+          const aiResult = await ai.call([{ role: "user", content: prompt }], false, "workflow-summarize");
+          if (aiResult.success) {
+            summary = aiResult.rawResponse;
+            console.error(`[workflow-run] AI summarization complete (${summary?.length ?? 0} chars)`);
+          } else {
+            console.error(`[workflow-run] AI summarization failed: ${aiResult.error}`);
+            summary = `**AI Summarization Failed**\n\n${aiResult.error ?? "Unknown error"}`;
+          }
+        }
+
+        res.json({
+          workflowId: wf.id,
+          workflowName: wf.name,
+          connector: wf.connector,
+          executionTimeMs: Date.now() - start,
+          steps: stepResults,
+          summary,
+        });
+      } catch (err) {
+        res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+      }
+    });
+  }
 
   return router;
 }

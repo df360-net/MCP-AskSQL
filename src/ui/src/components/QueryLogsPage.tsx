@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { useFetch, apiDelete, apiPost } from "../hooks/useApi.js";
-import type { LogEntry, LogStats, ConnectorInfo, SQLExecuteResult } from "../types.js";
+import type { LogEntry, LogStats, ConnectorInfo, SQLExecuteResult, Workflow } from "../types.js";
 
 type RerunResult = SQLExecuteResult;
 
@@ -37,6 +37,10 @@ export function QueryLogsPage() {
   const [toolCallsData, setToolCallsData] = useState<{ entryId: string; toolCalls: Array<{ turn: number; tool: string; input: Record<string, unknown>; output: string; durationMs: number }> } | null>(null);
   const [answerData, setAnswerData] = useState<{ entryId: string; answer: string } | null>(null);
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [saveWfEntry, setSaveWfEntry] = useState<LogEntry | null>(null);
+  const [saveWfName, setSaveWfName] = useState("");
+  const [saveWfDesc, setSaveWfDesc] = useState("");
+  const [saveWfBusy, setSaveWfBusy] = useState(false);
   const rerunRef = useRef<HTMLDivElement>(null);
   const promptRef = useRef<HTMLDivElement>(null);
   const explanationRef = useRef<HTMLDivElement>(null);
@@ -217,6 +221,20 @@ export function QueryLogsPage() {
                     >
                       {promptLoading === entry.id ? "Loading..." : "Level 1 AI Prompt"}
                     </button>
+                    {entry.toolCalls && entry.toolCalls.some((tc) => tc.sql && tc.sqlSuccess) && (
+                      <button
+                        className="prompt-reconstruct-btn"
+                        style={{ background: "#059669" }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSaveWfEntry(entry);
+                          setSaveWfName("");
+                          setSaveWfDesc("");
+                        }}
+                      >
+                        Save as Workflow
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -429,6 +447,94 @@ export function QueryLogsPage() {
           </div>
         </div>
       )}
+
+      {/* Save as Workflow modal */}
+      {saveWfEntry && (() => {
+        const entry = saveWfEntry;
+        const steps = (entry.toolCalls ?? [])
+          .filter((tc) => tc.sql && tc.sqlSuccess)
+          .map((tc, i) => ({
+            order: i + 1,
+            title: tc.tool === "ask_sql" ? String(tc.input.question ?? "") : tc.tool === "query" ? `Direct SQL query` : tc.tool,
+            sql: tc.sql!,
+          }));
+
+        const handleSave = async () => {
+          if (!saveWfName.trim()) { alert("Please enter a workflow name."); return; }
+          setSaveWfBusy(true);
+          try {
+            await apiPost<Workflow>("/api/workflows", {
+              name: saveWfName.trim(),
+              description: saveWfDesc.trim() || undefined,
+              connector: entry.connector,
+              originalQuestion: entry.question ?? "",
+              aiReasoning: entry.explanation ?? undefined,
+              steps,
+            });
+            alert("Workflow saved! Go to the Workflows page to view and run it.");
+            setSaveWfEntry(null);
+          } catch (err) {
+            alert(err instanceof Error ? err.message : String(err));
+          } finally {
+            setSaveWfBusy(false);
+          }
+        };
+
+        return (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
+            <div style={{ background: "#fff", borderRadius: 8, padding: 24, width: 560, maxHeight: "80vh", overflow: "auto", boxShadow: "0 8px 32px rgba(0,0,0,0.2)" }}>
+              <h3 style={{ margin: "0 0 16px", color: "#0f3460" }}>Save as Workflow</h3>
+
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Name *</label>
+                <input
+                  type="text"
+                  value={saveWfName}
+                  onChange={(e) => setSaveWfName(e.target.value)}
+                  placeholder="e.g., TPCH Business Insights Report"
+                  style={{ width: "100%", padding: "8px 10px", border: "1px solid #d1d5db", borderRadius: 4, fontSize: 13, boxSizing: "border-box" }}
+                  autoFocus
+                />
+              </div>
+
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Description (optional)</label>
+                <input
+                  type="text"
+                  value={saveWfDesc}
+                  onChange={(e) => setSaveWfDesc(e.target.value)}
+                  placeholder="Brief description of this workflow"
+                  style={{ width: "100%", padding: "8px 10px", border: "1px solid #d1d5db", borderRadius: 4, fontSize: 13, boxSizing: "border-box" }}
+                />
+              </div>
+
+              <div style={{ marginBottom: 12, fontSize: 13 }}>
+                <strong>Connector:</strong> {entry.connector}
+              </div>
+              <div style={{ marginBottom: 12, fontSize: 13 }}>
+                <strong>Original Question:</strong> {entry.question || "-"}
+              </div>
+
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Steps ({steps.length}):</div>
+                {steps.map((s) => (
+                  <div key={s.order} style={{ marginBottom: 6, padding: "6px 10px", background: "#f8fafc", borderRadius: 4, border: "1px solid #e2e8f0" }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: "#334155" }}>Step {s.order}: {s.title}</div>
+                    <code style={{ fontSize: 11, color: "#475569", wordBreak: "break-all" }}>{s.sql}</code>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                <button className="btn" style={{ background: "#6b7280" }} onClick={() => setSaveWfEntry(null)}>Cancel</button>
+                <button className="btn" style={{ background: "#059669" }} disabled={saveWfBusy} onClick={handleSave}>
+                  {saveWfBusy ? "Saving..." : "Save Workflow"}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

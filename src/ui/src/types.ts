@@ -91,6 +91,42 @@ export interface AskResult {
   tokenUsage?: { promptTokens: number; completionTokens: number; totalTokens: number; estimatedCost: number };
 }
 
+export interface WorkflowStep {
+  order: number;
+  title: string;
+  sql: string;
+}
+
+export interface Workflow {
+  id: string;
+  name: string;
+  description?: string;
+  connector: string;
+  originalQuestion: string;
+  aiReasoning?: string;
+  steps: WorkflowStep[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WorkflowRunResult {
+  workflowId: string;
+  workflowName: string;
+  connector: string;
+  executionTimeMs: number;
+  steps: Array<{
+    order: number;
+    title: string;
+    sql: string;
+    success: boolean;
+    error?: string;
+    rows: Record<string, unknown>[];
+    rowCount: number;
+    executionTimeMs: number;
+  }>;
+  summary?: string;
+}
+
 export interface SQLExecuteResult {
   rows: Record<string, unknown>[];
   columns: Array<{ name: string; type: string }>;

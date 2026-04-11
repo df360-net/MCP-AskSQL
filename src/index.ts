@@ -14,6 +14,7 @@ import { ConfigStore } from "./config-store.js";
 import { ConnectorManager } from "./connector-manager.js";
 import { QueryLogger } from "./query-logger.js";
 import { createApiRouter } from "./api-routes.js";
+import { WorkflowStore } from "./workflow-store.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -39,12 +40,12 @@ async function startStdio(manager: ConnectorManager, logger: QueryLogger, askCon
 }
 
 // --- HTTP transport (stateful — session per client) ---
-async function startHttp(manager: ConnectorManager, logger: QueryLogger, configStore: ConfigStore, port: number, askConfig?: AskAgentAppConfig, shutdownTimeoutMs = 10000) {
+async function startHttp(manager: ConnectorManager, logger: QueryLogger, configStore: ConfigStore, workflowStore: WorkflowStore, port: number, askConfig?: AskAgentAppConfig, shutdownTimeoutMs = 10000) {
   const app = express();
   app.use(express.json());
 
   // ── REST API for admin UI ──
-  app.use("/api", createApiRouter(manager, configStore, logger, askConfig));
+  app.use("/api", createApiRouter(manager, configStore, logger, askConfig, workflowStore));
 
   // ── MCP protocol (stateful sessions) ──
   const sessions = new Map<string, StreamableHTTPServerTransport>();
@@ -175,6 +176,7 @@ async function main() {
   const manager = new ConnectorManager(config);
   const maxLogFileSize = (config.logging?.maxFileSizeMb ?? 10) * 1024 * 1024;
   const logger = new QueryLogger(config.dataDir, maxLogFileSize, config.logging?.defaultPageSize);
+  const workflowStore = new WorkflowStore(config.dataDir);
 
   await manager.init();
   console.error(`Loaded ${manager.listConnectors().length} connector(s)`);
@@ -192,7 +194,7 @@ async function main() {
         port = parsed;
       }
     }
-    await startHttp(manager, logger, configStore, port, config.ask, config.safety?.shutdownTimeoutMs);
+    await startHttp(manager, logger, configStore, workflowStore, port, config.ask, config.safety?.shutdownTimeoutMs);
   }
 }
 
