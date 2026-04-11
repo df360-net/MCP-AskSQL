@@ -334,7 +334,24 @@ export function NLQueryPage() {
                       <span className="tool-call-badge">Turn {tc.turn + 1}</span>
                       <strong>{tc.tool}</strong>
                       <span className="tool-call-time">{tc.durationMs}ms</span>
-                      <pre className="tool-call-input">{JSON.stringify(tc.input, null, 2)}</pre>
+                      {tc.sqlSuccess !== undefined && (
+                        <span className={`badge ${tc.sqlSuccess ? "green" : "red"}`} style={{ fontSize: 10, marginLeft: 4 }}>{tc.sqlSuccess ? "OK" : "FAIL"}</span>
+                      )}
+                      {tc.tool === "ask_sql" && tc.input.question && (
+                        <div style={{ margin: "4px 0", fontSize: 12 }}>
+                          <strong>Level2 AI question:</strong> {String(tc.input.question)}
+                        </div>
+                      )}
+                      {tc.sql && (
+                        <div style={{ margin: "4px 0", fontSize: 12 }}>
+                          <strong>Level1 AI SQL:</strong> <code style={{ fontSize: 11 }}>{tc.sql}</code>
+                        </div>
+                      )}
+                      {tc.sqlSuccess !== undefined && (
+                        <div style={{ margin: "4px 0", fontSize: 12 }}>
+                          <strong>SQL Execution Status:</strong> {tc.sqlSuccess ? "Success" : "Failed"}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </details>

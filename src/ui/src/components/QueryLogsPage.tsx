@@ -373,8 +373,30 @@ export function QueryLogsPage() {
                 <span className="badge green" style={{ fontSize: 11 }}>Turn {tc.turn + 1}</span>
                 <strong>{tc.tool}</strong>
                 <span style={{ color: "#94a3b8", fontSize: 12 }}>{tc.durationMs}ms</span>
+                {tc.sqlSuccess !== undefined && (
+                  <span className={`badge ${tc.sqlSuccess ? "green" : "red"}`} style={{ fontSize: 10 }}>{tc.sqlSuccess ? "OK" : "FAIL"}</span>
+                )}
               </div>
-              <pre style={{ margin: 0, fontSize: 12, whiteSpace: "pre-wrap", color: "#1a1a1a" }}>{JSON.stringify(tc.input, null, 2)}</pre>
+              {tc.tool === "ask_sql" && tc.input.question && (
+                <div style={{ margin: "4px 0", fontSize: 12, color: "#1a1a1a" }}>
+                  <strong>Level2 AI question:</strong> {String(tc.input.question)}
+                </div>
+              )}
+              {tc.tool === "query" && tc.input.sql && (
+                <div style={{ margin: "4px 0", fontSize: 12, color: "#1a1a1a" }}>
+                  <strong>Level2 AI SQL:</strong> <code style={{ fontSize: 11 }}>{String(tc.input.sql)}</code>
+                </div>
+              )}
+              {tc.sql && (
+                <div style={{ margin: "4px 0", fontSize: 12, color: "#1a1a1a" }}>
+                  <strong>Level1 AI SQL:</strong> <code style={{ fontSize: 11 }}>{tc.sql}</code>
+                </div>
+              )}
+              {tc.sqlSuccess !== undefined && (
+                <div style={{ margin: "4px 0", fontSize: 12, color: "#1a1a1a" }}>
+                  <strong>SQL Execution Status:</strong> {tc.sqlSuccess ? "Success" : "Failed"}
+                </div>
+              )}
             </div>
           ))}
         </div>

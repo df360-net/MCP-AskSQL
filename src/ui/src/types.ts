@@ -52,7 +52,7 @@ export interface LogEntry {
   /** Level 2 agent loop explanation (turn-by-turn reasoning) */
   explanation?: string;
   /** Level 2 agent loop tool calls audit trail */
-  toolCalls?: Array<{ turn: number; tool: string; input: Record<string, unknown>; output: string; durationMs: number }>;
+  toolCalls?: Array<{ turn: number; tool: string; input: Record<string, unknown>; output: string; durationMs: number; sql?: string; sqlSuccess?: boolean }>;
 }
 
 export interface LogStats {
@@ -85,7 +85,7 @@ export interface AskResult {
   // Agent loop fields (when ask.enabled = true)
   answer?: string;
   turns?: number;
-  toolCalls?: Array<{ turn: number; tool: string; input: Record<string, unknown>; output: string; durationMs: number }>;
+  toolCalls?: Array<{ turn: number; tool: string; input: Record<string, unknown>; output: string; durationMs: number; sql?: string; sqlSuccess?: boolean }>;
   tokenUsage?: { promptTokens: number; completionTokens: number; totalTokens: number; estimatedCost: number };
 }
 

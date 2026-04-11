@@ -133,12 +133,28 @@ export async function askAgentLoop(config: AskAgentConfig): Promise<AskAgentResu
       const toolResult = await executeInternalTool(call.function.name, args, asksql, maxRows);
       const durationMs = Date.now() - start;
 
+      // Extract SQL and success from ask_sql/query results
+      let sql: string | undefined;
+      let sqlSuccess: boolean | undefined;
+      try {
+        const parsed = JSON.parse(toolResult);
+        if (call.function.name === "ask_sql") {
+          sql = parsed.sql ?? undefined;
+          sqlSuccess = parsed.success ?? undefined;
+        } else if (call.function.name === "query") {
+          sql = (args.sql as string) ?? undefined;
+          sqlSuccess = !parsed.error;
+        }
+      } catch { /* ignore parse errors */ }
+
       const logEntry: ToolCallLog = {
         turn,
         tool: call.function.name,
         input: args,
         output: toolResult.length > toolOutputMaxChars ? toolResult.slice(0, toolOutputMaxChars) + "... (truncated)" : toolResult,
         durationMs,
+        ...(sql !== undefined && { sql }),
+        ...(sqlSuccess !== undefined && { sqlSuccess }),
       };
       allToolCalls.push(logEntry);
       turnToolCalls.push(logEntry);
