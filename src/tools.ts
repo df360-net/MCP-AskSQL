@@ -56,6 +56,7 @@ export function registerTools(
             success: agentResult.success,
             executionTimeMs: Date.now() - start,
             explanation: agentResult.explanation || undefined,
+            toolCalls: agentResult.toolCalls.length > 0 ? agentResult.toolCalls : undefined,
           });
           console.error(`[ask-agent] ${agentResult.turns} turns, ${agentResult.toolCalls.length} tool calls, ${agentResult.tokenUsage.totalTokens} tokens`);
           return {

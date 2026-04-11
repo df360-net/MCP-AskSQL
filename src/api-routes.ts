@@ -337,6 +337,7 @@ export function createApiRouter(
           success: agentResult.success,
           executionTimeMs: Date.now() - start,
           explanation: agentResult.explanation || undefined,
+          toolCalls: agentResult.toolCalls.length > 0 ? agentResult.toolCalls : undefined,
         });
         console.error(`[ask-agent] REST /api/ask: ${agentResult.turns} turns, ${agentResult.toolCalls.length} tool calls, ${agentResult.tokenUsage.totalTokens} tokens`);
         return;

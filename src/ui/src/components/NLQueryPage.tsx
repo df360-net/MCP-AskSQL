@@ -328,7 +328,7 @@ export function NLQueryPage() {
 
               {result.toolCalls && result.toolCalls.length > 0 && (
                 <details className="result-tool-calls">
-                  <summary>Tool Calls ({result.toolCalls.length})</summary>
+                  <summary>To Level1 AI Calls ({result.toolCalls.length})</summary>
                   {result.toolCalls.map((tc, i) => (
                     <div key={i} className="tool-call-entry">
                       <span className="tool-call-badge">Turn {tc.turn + 1}</span>
