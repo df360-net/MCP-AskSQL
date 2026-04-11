@@ -1,6 +1,7 @@
 /**
  * Shared test fixtures — mock data for all test suites.
  */
+import { jest } from "@jest/globals";
 
 import type { LogEntry } from "../../src/query-logger.js";
 
@@ -127,7 +128,7 @@ export const MOCK_LOG_ENTRIES: Omit<LogEntry, "id" | "timestamp">[] = [
 
 export function createMockAskSQL() {
   return {
-    ask: vi.fn().mockResolvedValue({
+    ask: jest.fn<any>().mockResolvedValue({
       success: true,
       sql: "SELECT * FROM test",
       explanation: "Selects all rows from test",
@@ -140,29 +141,29 @@ export function createMockAskSQL() {
       tokenUsage: { promptTokens: 100, completionTokens: 50, totalTokens: 150, estimatedCost: 0.01 },
       columns: [{ name: "id", type: "int" }, { name: "name", type: "varchar" }],
     }),
-    generateSQL: vi.fn().mockResolvedValue({
+    generateSQL: jest.fn<any>().mockResolvedValue({
       sql: "SELECT * FROM test",
       explanation: "Selects all rows from test",
       tokenUsage: { promptTokens: 100, completionTokens: 50, totalTokens: 150, estimatedCost: 0.01 },
     }),
-    executeSQL: vi.fn().mockResolvedValue({
+    executeSQL: jest.fn<any>().mockResolvedValue({
       rows: [{ id: 1 }],
       columns: [{ name: "id", type: "int" }],
       rowCount: 1,
       truncated: false,
       executionTimeMs: 10,
     }),
-    healthCheck: vi.fn().mockResolvedValue({
+    healthCheck: jest.fn<any>().mockResolvedValue({
       database: { connected: true, version: "16.0" },
       ai: { reachable: true },
     }),
-    refreshCatalog: vi.fn().mockResolvedValue({
+    refreshCatalog: jest.fn<any>().mockResolvedValue({
       tables: 5,
       columns: 20,
       discovered: MOCK_DISCOVERED_DB_PG,
     }),
-    loadFromCache: vi.fn().mockReturnValue({ tables: 5, columns: 20 }),
-    close: vi.fn().mockResolvedValue(undefined),
+    loadFromCache: jest.fn<any>().mockReturnValue({ tables: 5, columns: 20 }),
+    close: jest.fn<any>().mockResolvedValue(undefined),
   };
 }
 
@@ -172,27 +173,27 @@ export function createMockConnectorManager() {
   const mockAsksql = createMockAskSQL();
 
   return {
-    get: vi.fn().mockReturnValue(mockAsksql),
-    listConnectors: vi.fn().mockReturnValue([
+    get: jest.fn<any>().mockReturnValue(mockAsksql),
+    listConnectors: jest.fn<any>().mockReturnValue([
       { id: "pg_test", type: "postgresql", schemas: ["public"], isDefault: true, cached: true, cacheAgeHours: 2.1 },
       { id: "sf_test", type: "snowflake", schemas: ["TPCH_SF1"], isDefault: false, cached: true, cacheAgeHours: 5.0 },
     ]),
-    getConnectorConfig: vi.fn().mockImplementation((id: string) => {
+    getConnectorConfig: jest.fn<any>().mockImplementation((id: string) => {
       if (id === "pg_test") return { id: "pg_test", connectionString: "postgres://user:secret@localhost:5432/db", schemas: ["public"] };
       if (id === "sf_test") return { id: "sf_test", connectionString: "snowflake://user:secret@account/db", schemas: ["TPCH_SF1"] };
       return undefined;
     }),
-    getSchemaInfo: vi.fn().mockReturnValue({ tables: 3, columns: 8, tableNames: ["df360.df360_app", "df360.df360_data_element", "df360.df360_support_group"], cacheAgeHours: 2.1 }),
-    getSchemaDetail: vi.fn().mockReturnValue(MOCK_DISCOVERED_DB_PG),
-    getAIConfig: vi.fn().mockReturnValue({ baseUrl: "https://api.example.com/v1", apiKey: "sk-test-key-1234567890", model: "test-model", maxTokens: 4096, temperature: 0.3 }),
-    getSafetyConfig: vi.fn().mockReturnValue({ maxRows: 5000, timeoutMs: 30000, maxRetries: 2 }),
-    routeQuestion: vi.fn().mockResolvedValue({ connectorId: "pg_test", method: "keyword", confidence: "3 keyword matches" }),
-    refreshSchema: vi.fn().mockResolvedValue({ connector: "pg_test", tables: 5, columns: 20 }),
-    addConnector: vi.fn().mockResolvedValue({ id: "new_conn", type: "mysql", schemas: ["public"], isDefault: false, cached: false, cacheAgeHours: null }),
-    updateConnector: vi.fn().mockResolvedValue({ id: "pg_test", type: "postgresql", schemas: ["public"], isDefault: true, cached: true, cacheAgeHours: 0 }),
-    removeConnector: vi.fn().mockResolvedValue(undefined),
-    updateAIConfig: vi.fn().mockResolvedValue(undefined),
-    close: vi.fn().mockResolvedValue(undefined),
+    getSchemaInfo: jest.fn<any>().mockReturnValue({ tables: 3, columns: 8, tableNames: ["df360.df360_app", "df360.df360_data_element", "df360.df360_support_group"], cacheAgeHours: 2.1 }),
+    getSchemaDetail: jest.fn<any>().mockReturnValue(MOCK_DISCOVERED_DB_PG),
+    getAIConfig: jest.fn<any>().mockReturnValue({ baseUrl: "https://api.example.com/v1", apiKey: "sk-test-key-1234567890", model: "test-model", maxTokens: 4096, temperature: 0.3 }),
+    getSafetyConfig: jest.fn<any>().mockReturnValue({ maxRows: 5000, timeoutMs: 30000, maxRetries: 2 }),
+    routeQuestion: jest.fn<any>().mockResolvedValue({ connectorId: "pg_test", method: "keyword", confidence: "3 keyword matches" }),
+    refreshSchema: jest.fn<any>().mockResolvedValue({ connector: "pg_test", tables: 5, columns: 20 }),
+    addConnector: jest.fn<any>().mockResolvedValue({ id: "new_conn", type: "mysql", schemas: ["public"], isDefault: false, cached: false, cacheAgeHours: null }),
+    updateConnector: jest.fn<any>().mockResolvedValue({ id: "pg_test", type: "postgresql", schemas: ["public"], isDefault: true, cached: true, cacheAgeHours: 0 }),
+    removeConnector: jest.fn<any>().mockResolvedValue(undefined),
+    updateAIConfig: jest.fn<any>().mockResolvedValue(undefined),
+    close: jest.fn<any>().mockResolvedValue(undefined),
     _mockAsksql: mockAsksql,
   };
 }
@@ -202,11 +203,11 @@ export function createMockConnectorManager() {
 export function createMockConfigStore() {
   const stored = { ...VALID_FILE_CONFIG_MULTI };
   return {
-    read: vi.fn().mockReturnValue(JSON.parse(JSON.stringify(stored))),
-    write: vi.fn(),
-    updateConnectors: vi.fn(),
-    updateAI: vi.fn(),
-    getFilePath: vi.fn().mockReturnValue("/fake/config.json"),
+    read: jest.fn<any>().mockReturnValue(JSON.parse(JSON.stringify(stored))),
+    write: jest.fn<any>(),
+    updateConnectors: jest.fn<any>(),
+    updateAI: jest.fn<any>(),
+    getFilePath: jest.fn<any>().mockReturnValue("/fake/config.json"),
   };
 }
 
@@ -214,9 +215,9 @@ export function createMockConfigStore() {
 
 export function createMockQueryLogger() {
   return {
-    log: vi.fn(),
-    query: vi.fn().mockReturnValue({ rows: [], total: 0 }),
-    stats: vi.fn().mockReturnValue({ totalQueries: 10, successful: 8, failed: 2, avgExecutionTimeMs: 150, byConnector: { pg_test: 7, sf_test: 3 }, byTool: { ask: 6, execute_sql: 3, health_check: 1 } }),
-    clear: vi.fn(),
+    log: jest.fn<any>(),
+    query: jest.fn<any>().mockReturnValue({ rows: [], total: 0 }),
+    stats: jest.fn<any>().mockReturnValue({ totalQueries: 10, successful: 8, failed: 2, avgExecutionTimeMs: 150, byConnector: { pg_test: 7, sf_test: 3 }, byTool: { ask: 6, execute_sql: 3, health_check: 1 } }),
+    clear: jest.fn<any>(),
   };
 }

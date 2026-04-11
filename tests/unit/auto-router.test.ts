@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, jest } from "@jest/globals";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -22,7 +22,7 @@ beforeEach(() => {
 
 afterEach(() => {
   rmSync(tmpDir, { recursive: true, force: true });
-  vi.restoreAllMocks();
+  jest.restoreAllMocks();
 });
 
 describe("AutoRouter", () => {
@@ -44,7 +44,7 @@ describe("AutoRouter", () => {
       cache.save("pg", MOCK_DISCOVERED_DB_PG);
       cache.save("sf", MOCK_DISCOVERED_DB_SF);
       // Stub fetch so AI fallback doesn't make real HTTP calls
-      vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("no network")));
+      global.fetch = jest.fn<any>().mockRejectedValue(new Error("no network")) as any;
       router = new AutoRouter(["pg", "sf"], "pg", cache, AI_CONFIG);
     });
 
@@ -91,13 +91,13 @@ describe("AutoRouter", () => {
       cache.save("sf", MOCK_DISCOVERED_DB_SF);
 
       // Mock fetch to return AI decision
-      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      global.fetch = jest.fn<any>().mockResolvedValue({
         ok: true,
         json: () => Promise.resolve({
           choices: [{ message: { content: '{"connectorId":"pg","reason":"matches app tables"}' } }],
           usage: { prompt_tokens: 100, completion_tokens: 50, total_tokens: 150 },
         }),
-      }));
+      }) as any;
 
       const router = new AutoRouter(["pg", "sf"], "pg", cache, AI_CONFIG);
 
@@ -117,13 +117,13 @@ describe("AutoRouter", () => {
       cache.save("pg", MOCK_DISCOVERED_DB_PG);
       cache.save("sf", MOCK_DISCOVERED_DB_SF);
 
-      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      global.fetch = jest.fn<any>().mockResolvedValue({
         ok: true,
         json: () => Promise.resolve({
           choices: [{ message: { content: '{"connectorId":"nonexistent","reason":"oops"}' } }],
           usage: { prompt_tokens: 100, completion_tokens: 50, total_tokens: 150 },
         }),
-      }));
+      }) as any;
 
       const router = new AutoRouter(["pg", "sf"], "pg", cache, AI_CONFIG);
       const result = await router.route("something completely unrelated to any schema");
@@ -135,7 +135,7 @@ describe("AutoRouter", () => {
       cache.save("pg", MOCK_DISCOVERED_DB_PG);
       cache.save("sf", MOCK_DISCOVERED_DB_SF);
 
-      vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("Network error")));
+      global.fetch = jest.fn<any>().mockRejectedValue(new Error("Network error")) as any;
 
       const router = new AutoRouter(["pg", "sf"], "pg", cache, AI_CONFIG);
       const result = await router.route("something completely unrelated");
@@ -147,7 +147,7 @@ describe("AutoRouter", () => {
   describe("rebuild", () => {
     it("rebuilds indexes after adding a connector", async () => {
       cache.save("pg", MOCK_DISCOVERED_DB_PG);
-      vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("no network")));
+      global.fetch = jest.fn<any>().mockRejectedValue(new Error("no network")) as any;
 
       const router = new AutoRouter(["pg"], "pg", cache, AI_CONFIG);
 
@@ -170,7 +170,7 @@ describe("AutoRouter", () => {
     it("handles empty question", async () => {
       cache.save("pg", MOCK_DISCOVERED_DB_PG);
       cache.save("sf", MOCK_DISCOVERED_DB_SF);
-      vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("no network")));
+      global.fetch = jest.fn<any>().mockRejectedValue(new Error("no network")) as any;
 
       const router = new AutoRouter(["pg", "sf"], "pg", cache, AI_CONFIG);
       const result = await router.route("");
@@ -178,7 +178,7 @@ describe("AutoRouter", () => {
     });
 
     it("handles no cached schemas", async () => {
-      vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("no network")));
+      global.fetch = jest.fn<any>().mockRejectedValue(new Error("no network")) as any;
       const router = new AutoRouter(["pg", "sf"], "pg", cache, AI_CONFIG);
       const result = await router.route("show me data");
       expect(result.connectorId).toBe("pg"); // default, no indexes to match

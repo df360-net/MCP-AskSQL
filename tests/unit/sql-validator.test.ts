@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "@jest/globals";
 import { validateSql } from "../../src/asksql/core/validator/sql-validator.js";
 
 describe("validateSql", () => {

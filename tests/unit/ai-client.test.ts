@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, jest } from "@jest/globals";
 import { AIClient } from "../../src/asksql/core/ai/client.js";
 
 const CONFIG = {
@@ -11,7 +11,7 @@ const CONFIG = {
 };
 
 function mockFetchOk(content: string, usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number }) {
-  return vi.fn().mockResolvedValue({
+  return jest.fn<any>().mockResolvedValue({
     ok: true,
     json: () => Promise.resolve({
       choices: [{ message: { content } }],
@@ -21,19 +21,19 @@ function mockFetchOk(content: string, usage?: { prompt_tokens: number; completio
 }
 
 beforeEach(() => {
-  vi.useFakeTimers({ shouldAdvanceTime: true });
+  jest.useFakeTimers();
 });
 
 afterEach(() => {
-  vi.restoreAllMocks();
-  vi.useRealTimers();
-  vi.unstubAllGlobals();
+  jest.restoreAllMocks();
+  jest.useRealTimers();
+  delete (global as any).fetch;
 });
 
 describe("AIClient", () => {
   describe("call — raw text mode", () => {
     it("returns rawResponse from API", async () => {
-      vi.stubGlobal("fetch", mockFetchOk("Hello world"));
+      global.fetch = mockFetchOk("Hello world") as any;
       const client = new AIClient(CONFIG);
       const result = await client.call([{ role: "user", content: "Hi" }], false);
       expect(result.success).toBe(true);
@@ -41,7 +41,7 @@ describe("AIClient", () => {
     });
 
     it("includes token usage", async () => {
-      vi.stubGlobal("fetch", mockFetchOk("OK", { prompt_tokens: 100, completion_tokens: 50, total_tokens: 150 }));
+      global.fetch = mockFetchOk("OK", { prompt_tokens: 100, completion_tokens: 50, total_tokens: 150 }) as any;
       const client = new AIClient(CONFIG);
       const result = await client.call([{ role: "user", content: "Hi" }]);
       expect(result.tokenUsage).toBeDefined();
@@ -52,12 +52,12 @@ describe("AIClient", () => {
     });
 
     it("does not retry on 400", async () => {
-      const fetchMock = vi.fn().mockResolvedValue({
+      const fetchMock = jest.fn<any>().mockResolvedValue({
         ok: false,
         status: 400,
         text: () => Promise.resolve("Bad request"),
       });
-      vi.stubGlobal("fetch", fetchMock);
+      global.fetch = fetchMock as any;
       const client = new AIClient(CONFIG);
       const result = await client.call([{ role: "user", content: "Hi" }]);
       expect(result.success).toBe(false);
@@ -68,7 +68,7 @@ describe("AIClient", () => {
 
   describe("call — JSON parse mode", () => {
     it("parses clean JSON response", async () => {
-      vi.stubGlobal("fetch", mockFetchOk('{"sql":"SELECT 1","explanation":"test"}'));
+      global.fetch = mockFetchOk('{"sql":"SELECT 1","explanation":"test"}') as any;
       const client = new AIClient(CONFIG);
       const result = await client.call<{ sql: string; explanation: string }>(
         [{ role: "user", content: "generate sql" }],
@@ -80,7 +80,7 @@ describe("AIClient", () => {
     });
 
     it("extracts JSON from markdown code fence", async () => {
-      vi.stubGlobal("fetch", mockFetchOk('Here is the result:\n```json\n{"sql":"SELECT 1"}\n```\nDone.'));
+      global.fetch = mockFetchOk('Here is the result:\n```json\n{"sql":"SELECT 1"}\n```\nDone.') as any;
       const client = new AIClient(CONFIG);
       const result = await client.call<{ sql: string }>([{ role: "user", content: "q" }], true);
       expect(result.success).toBe(true);
@@ -88,7 +88,7 @@ describe("AIClient", () => {
     });
 
     it("extracts JSON object from mixed text", async () => {
-      vi.stubGlobal("fetch", mockFetchOk('Sure! {"sql":"SELECT 1"} Hope that helps.'));
+      global.fetch = mockFetchOk('Sure! {"sql":"SELECT 1"} Hope that helps.') as any;
       const client = new AIClient(CONFIG);
       const result = await client.call<{ sql: string }>([{ role: "user", content: "q" }], true);
       expect(result.success).toBe(true);
@@ -96,7 +96,7 @@ describe("AIClient", () => {
     });
 
     it("returns error when JSON cannot be parsed", async () => {
-      vi.stubGlobal("fetch", mockFetchOk("Just plain text, no JSON here"));
+      global.fetch = mockFetchOk("Just plain text, no JSON here") as any;
       const client = new AIClient(CONFIG);
       const result = await client.call<unknown>([{ role: "user", content: "q" }], true);
       expect(result.success).toBe(false);
@@ -106,11 +106,11 @@ describe("AIClient", () => {
 
   describe("estimateCost", () => {
     it("uses default pricing", async () => {
-      vi.stubGlobal("fetch", mockFetchOk("OK", {
+      global.fetch = mockFetchOk("OK", {
         prompt_tokens: 1_000_000,
         completion_tokens: 1_000_000,
         total_tokens: 2_000_000,
-      }));
+      }) as any;
       const client = new AIClient(CONFIG);
       const result = await client.call([{ role: "user", content: "Hi" }]);
       // Default: 0.07/M prompt + 0.14/M completion = 0.07 + 0.14 = 0.21
@@ -118,11 +118,11 @@ describe("AIClient", () => {
     });
 
     it("uses custom pricing when provided", async () => {
-      vi.stubGlobal("fetch", mockFetchOk("OK", {
+      global.fetch = mockFetchOk("OK", {
         prompt_tokens: 1_000_000,
         completion_tokens: 1_000_000,
         total_tokens: 2_000_000,
-      }));
+      }) as any;
       const client = new AIClient({ ...CONFIG, promptPricePerMillion: 1.0, completionPricePerMillion: 2.0 });
       const result = await client.call([{ role: "user", content: "Hi" }]);
       // 1.0 + 2.0 = 3.0

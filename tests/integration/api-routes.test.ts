@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, jest } from "@jest/globals";
 import express from "express";
 import request from "supertest";
 import { createApiRouter } from "../../src/api-routes.js";
@@ -179,29 +179,29 @@ describe("API Routes", () => {
   describe("POST /api/ai/test", () => {
     it("returns reachable status", async () => {
       // Mock global fetch for AI test
-      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      global.fetch = jest.fn<any>().mockResolvedValue({
         ok: true,
         json: () => Promise.resolve({
           choices: [{ message: { content: "OK" } }],
           usage: { prompt_tokens: 5, completion_tokens: 1, total_tokens: 6 },
         }),
-      }));
+      }) as any;
 
       const res = await request(app).post("/api/ai/test");
       expect(res.status).toBe(200);
       expect(res.body.reachable).toBe(true);
 
-      vi.unstubAllGlobals();
+      delete (global as any).fetch;
     });
 
     it("returns reachable: false when AI fails", async () => {
-      vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("Network error")));
+      global.fetch = jest.fn<any>().mockRejectedValue(new Error("Network error")) as any;
 
       const res = await request(app).post("/api/ai/test");
       expect(res.status).toBe(200);
       expect(res.body.reachable).toBe(false);
 
-      vi.unstubAllGlobals();
+      delete (global as any).fetch;
     });
   });
 

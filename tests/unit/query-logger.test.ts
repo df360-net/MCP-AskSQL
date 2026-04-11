@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, rmSync, existsSync } from "node:fs";
+import { describe, it, expect, beforeEach, afterEach } from "@jest/globals";
+import { mkdtempSync, rmSync, existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { QueryLogger } from "../../src/query-logger.js";
@@ -150,7 +150,7 @@ describe("QueryLogger", () => {
         rotLogger.log(MOCK_LOG_ENTRIES[0]);
       }
       // After rotation, the archive file should exist
-      const files = require("node:fs").readdirSync(tmpDir) as string[];
+      const files = readdirSync(tmpDir) as string[];
       const archives = files.filter((f: string) => f.startsWith("query-log-") && f !== "query-log.jsonl");
       expect(archives.length).toBeGreaterThanOrEqual(1);
     });

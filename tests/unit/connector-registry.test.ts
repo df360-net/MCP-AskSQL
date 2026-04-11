@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "@jest/globals";
 import { detectConnectorType } from "../../src/asksql/core/connector/registry.js";
 
 describe("detectConnectorType", () => {

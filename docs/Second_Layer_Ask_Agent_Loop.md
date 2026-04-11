@@ -160,6 +160,68 @@ Turn 5: AI writes final answer:
          High-priority orders represent 20% but 35% of revenue..."
 ```
 
+### 4.5 Real-World Example: TPCH Snowflake Analysis
+
+The following is a real run from the Admin UI's NL Query page, asking *"Can you give me any insights about the sf_tpch data?"* against a Snowflake TPC-H database. The Level 2 agent ran 10 turns autonomously, calling the Level 1 AI via `ask_sql` for each analytical question.
+
+```
+Turn 1: Level 2 explores the schema
+  -> list_tables (0ms)
+
+Turn 2: Level 2 asks Level 1 to count all entities
+  -> ask_sql: "What is the total number of customers, orders, line items,
+               parts, and suppliers in the database?" (7405ms)
+
+Turn 3: Level 2 asks Level 1 for sales trends
+  -> ask_sql: "What is the total sales revenue, average order value,
+               and total number of orders by year?" (6153ms)
+
+Turn 4: Level 2 asks Level 1 for top customers
+  -> ask_sql: "What are the top 10 customers by total spending,
+               and what is their average account balance and market segment?" (8100ms)
+
+Turn 5: Level 2 asks Level 1 for market segment analysis
+  -> ask_sql: "What is the distribution of customers by market segment,
+               and what is the average spending per segment?" (7589ms)
+
+Turn 6: Level 2 asks Level 1 for product profitability
+  -> ask_sql: "What are the top 10 most profitable product types by total revenue,
+               and what is their average retail price?" (10446ms)
+
+Turn 7: Level 2 asks Level 1 for shipping analysis
+  -> ask_sql: "What is the average shipping time by shipping mode,
+               and which shipping mode is most commonly used?" (8190ms)
+
+Turn 8: Level 2 asks Level 1 for regional revenue breakdown
+  -> ask_sql: "What are the top 5 regions by total sales revenue,
+               and which nations contribute the most?" (18954ms)
+
+Turn 9: Level 2 asks Level 1 for order status patterns
+  -> ask_sql: "What is the distribution of order statuses and order priorities,
+               and what is the average order value for each?" (6723ms)
+
+Turn 10: Level 2 asks Level 1 for account balance correlations
+  -> ask_sql: "What is the correlation between customer account balance
+               and their total spending?" (22492ms)
+
+→ Level 2 writes final narrated answer with specific numbers from all 10 queries.
+```
+
+**What happened under the hood for each `ask_sql` call:**
+
+```
+Level 2 AI (agent loop — the strategist)
+  → Decides WHAT to ask: "What are the top 10 customers by total spending?"
+    → Level 1 AI (AskSQL.ask() — the SQL expert)
+      → Builds system prompt with Snowflake schema context
+      → Calls DeepSeek to generate SQL
+      → Executes SQL against Snowflake
+      → Returns rows + metadata to Level 2
+    → Level 2 reads the results, decides what to explore next
+```
+
+The Level 2 AI never writes SQL directly — it delegates SQL generation to the Level 1 AI via `ask_sql`. This is the **layered intelligence** pattern: Level 2 thinks about *what* to analyze, Level 1 figures out *how* to query it.
+
 ---
 
 ## 5. Configuration
