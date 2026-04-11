@@ -14,6 +14,11 @@ An [MCP](https://modelcontextprotocol.io/) (Model Context Protocol) server that 
 - **Dual transport** &mdash; stdio (local) and HTTP (cloud/remote)
 - **No external database dependency** &mdash; config and cache are file-based
 
+## Documents
+
+- [MCP-AskSQL Technical Design](docs/MCP_AskSQL_Tech_Design.md) &mdash; Architecture, connector system, schema caching, auto-routing, and AI integration
+- [Second Layer: Ask Agent Loop](docs/Second_Layer_Ask_Agent_Loop.md) &mdash; Multi-turn agent intelligence design, internal tools, real-world TPCH example
+
 ## Quick Start
 
 ```bash
