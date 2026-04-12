@@ -377,12 +377,181 @@ Level 2 AI produces a comprehensive markdown report.
 
 **Result:** Same quality report, fraction of the cost. ~44s vs ~134s, 1 AI call vs ~20 AI calls.
 
-## 10. Future Enhancements
+## 10. Workflow Scheduler
+
+### 10.1 Overview
+
+The Workflow Scheduler enables automatic, recurring execution of saved workflows. Borrowed from the MyHeadlines project scheduler architecture, adapted from SQLite to file-based (JSONL) storage.
+
+**Core features:**
+- **Tick-based engine** — checks for due jobs every 5 seconds
+- **Interval-based scheduling** — run every N seconds (e.g., every hour)
+- **Daily fixed-time scheduling** — run at a specific time (e.g., 7:00 AM)
+- **Sequential execution** — one job at a time to avoid resource contention
+- **Timeout protection** — `Promise.race` kills stuck jobs after N seconds
+- **Crash recovery** — marks orphaned `RUNNING` jobs as `FAILED` on startup
+
+### 10.2 Data Model
+
+```typescript
+interface ScheduledJob {
+  id: string;                          // UUID
+  workflowId: string;                  // Reference to saved Workflow
+  name: string;                        // Display name (defaults to workflow name)
+  scheduleType: "interval" | "daily";  // How to schedule
+  intervalSeconds?: number;            // For interval-based (e.g., 3600 = hourly)
+  dailyRunTime?: string;               // For daily (e.g., "07:00" in user's timezone)
+  timeoutSeconds: number;              // Max execution time before kill
+  isEnabled: boolean;                  // Admin can enable/disable
+  nextRunAt: string;                   // ISO timestamp — source of truth for due jobs
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface JobRun {
+  id: string;                          // UUID
+  jobId: string;                       // Reference to ScheduledJob
+  workflowId: string;                  // Reference to Workflow
+  status: "RUNNING" | "COMPLETED" | "FAILED" | "TIMED_OUT";
+  startedAt: string;                   // ISO timestamp
+  completedAt?: string;                // ISO timestamp
+  durationMs?: number;
+  stepsCompleted: number;              // How many SQL steps succeeded
+  stepsTotal: number;                  // Total steps in workflow
+  summary?: string;                    // AI-generated summary (if completed)
+  error?: string;                      // Error message (if failed)
+  triggeredBy: "SCHEDULER" | "MANUAL"; // Who triggered the run
+}
+```
+
+### 10.3 Storage
+
+File-based JSONL storage in the data directory:
+
+```
+data/
+  workflows.jsonl          # existing — saved workflows
+  scheduler-jobs.jsonl     # new — scheduled job configs
+  scheduler-runs.jsonl     # new — execution history
+```
+
+### 10.4 Architecture
+
+```
+┌─────────────────────────────────────────────────────┐
+│                  Scheduler Engine                    │
+│                                                     │
+│  5-second tick loop:                                │
+│  1. Query scheduler-jobs.jsonl for due jobs         │
+│     WHERE isEnabled = true AND nextRunAt <= now     │
+│  2. For each due job:                               │
+│     → Advance nextRunAt (interval or daily calc)    │
+│     → Create JobRun record as RUNNING               │
+│     → Execute workflow (all SQLs + AI summarize)    │
+│     → Mark JobRun as COMPLETED or FAILED            │
+│  3. Timeout protection via Promise.race             │
+│                                                     │
+│  Crash recovery on startup:                         │
+│  → Mark any RUNNING jobs as FAILED                  │
+└─────────────────────────────────────────────────────┘
+```
+
+### 10.5 Execution Flow
+
+```
+Tick (every 5s)
+  → Find due jobs (nextRunAt <= now && isEnabled)
+  → For each due job:
+      1. Advance nextRunAt to next scheduled time
+      2. Create JobRun { status: RUNNING }
+      3. Load Workflow by workflowId
+      4. Execute each SQL step sequentially
+      5. AI summarization call (schema + data + reasoning)
+      6. Update JobRun { status: COMPLETED, summary, durationMs }
+      7. On error: JobRun { status: FAILED, error }
+      8. On timeout: JobRun { status: TIMED_OUT }
+```
+
+### 10.6 API Endpoints
+
+```
+GET    /api/scheduler/jobs              — list all scheduled jobs
+POST   /api/scheduler/jobs              — create a schedule for a workflow
+PUT    /api/scheduler/jobs/:id          — update schedule (interval, enabled, etc.)
+DELETE /api/scheduler/jobs/:id          — delete a scheduled job
+POST   /api/scheduler/jobs/:id/trigger  — manually trigger a run now
+GET    /api/scheduler/jobs/:id/runs     — get run history for a job
+```
+
+### 10.7 Daily Run Time Calculation
+
+For daily scheduled jobs, convert user's local time to UTC:
+
+1. Get user's timezone (from config or system default)
+2. Calculate next occurrence of the target time in the user's timezone
+3. If target time has already passed today, add 24 hours
+4. Store as UTC ISO timestamp in `nextRunAt`
+
+### 10.8 UI Design
+
+Add a "Scheduler" tab to the Workflows page or as a separate page:
+
+```
+┌─────────────────────────────────────────────────────┐
+│  Scheduled Workflows                                │
+│                                                     │
+│  ┌─────────────────────────────────────────────┐    │
+│  │ TPCH Daily Report          Every 24h  [ON]  │    │
+│  │ Workflow: TPCH Comprehensive Analysis       │    │
+│  │ Next run: 4/12/2026 7:00 AM                 │    │
+│  │ Last run: COMPLETED  44s  4/11/2026 7:00 AM │    │
+│  │                        [Trigger Now] [Edit]  │    │
+│  └─────────────────────────────────────────────┘    │
+│                                                     │
+│  ┌─────────────────────────────────────────────┐    │
+│  │ Sales Hourly Check         Every 1h  [OFF]  │    │
+│  │ Workflow: Sales Summary                      │    │
+│  │ Next run: (disabled)                         │    │
+│  │ Last run: FAILED  "timeout after 60s"       │    │
+│  │                        [Trigger Now] [Edit]  │    │
+│  └─────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────┘
+```
+
+### 10.9 Implementation Files
+
+| File | Purpose |
+|------|---------|
+| `src/scheduler/engine.ts` | 5-second tick loop, execution with timeout, crash recovery |
+| `src/scheduler/store.ts` | JSONL storage for jobs and runs |
+| `src/scheduler/types.ts` | Type definitions |
+| `src/api-routes.ts` | Scheduler REST endpoints |
+| `src/index.ts` | Engine startup/shutdown lifecycle |
+| `src/ui/src/components/SchedulerPage.tsx` | UI for managing scheduled workflows |
+
+### 10.10 Lifecycle
+
+**Startup** (in `src/index.ts`):
+```
+1. Load scheduled jobs from scheduler-jobs.jsonl
+2. Crash recovery: mark any RUNNING jobs as FAILED
+3. Start 5-second tick loop
+```
+
+**Shutdown** (on `SIGINT`/`SIGTERM`):
+```
+1. Set shuttingDown flag
+2. Clear tick interval
+3. Wait for any running job to finish
+4. Close resources
+```
+
+## 11. Future Enhancements
 
 - **MCP tool `run_workflow`** — allow AI agents to execute saved workflows
-- **SSE streaming** — stream step progress during workflow execution
 - **Workflow editing** — inline SQL editing in the UI
 - **Workflow versioning** — track changes over time
 - **Export as SQL script** — standalone SQL file for use outside MCP-AskSQL
 - **Parameterized workflows** — template variables in SQL (e.g., date ranges)
-- **Scheduled execution** — cron-based automatic workflow runs
+- **Email/webhook notifications** — notify on workflow completion or failure
+- **Run history dashboard** — charts and metrics for scheduled workflow runs

@@ -4,6 +4,8 @@ import type { ConnectorConfig, AskAgentAppConfig } from "./config.js";
 import type { ConfigStore } from "./config-store.js";
 import type { QueryLogger } from "./query-logger.js";
 import type { WorkflowStore } from "./workflow-store.js";
+import type { SchedulerEngine } from "./scheduler/engine.js";
+import type { SchedulerStore } from "./scheduler/store.js";
 import { AIClient, type AIConfig } from "./asksql/core/ai/client.js";
 import { askAgentLoop } from "./ask/agent-loop.js";
 import type { AgentStreamEvent } from "./ask/types.js";
@@ -24,6 +26,8 @@ export function createApiRouter(
   logger: QueryLogger,
   askConfig?: AskAgentAppConfig,
   workflowStore?: WorkflowStore,
+  schedulerEngine?: SchedulerEngine,
+  schedulerStore?: SchedulerStore,
 ): Router {
   const askAgentEnabled = askConfig?.enabled ?? false;
   const askAgentMaxTurns = askConfig?.maxTurns ?? 10;
@@ -70,6 +74,7 @@ export function createApiRouter(
         res.status(400).json({ error: "id and connectionString are required" }); return;
       }
       const info = await manager.addConnector(c);
+      console.error(`[admin] Connector created: ${c.id}`);
       // Persist to config.json
       const fileConfig = configStore.read();
       fileConfig.connectors.push({
@@ -90,6 +95,7 @@ export function createApiRouter(
   router.put("/connectors/:id", async (req, res) => {
     try {
       const info = await manager.updateConnector(req.params.id, req.body);
+      console.error(`[admin] Connector updated: ${req.params.id}`);
       // Persist to config.json
       const fileConfig = configStore.read();
       const idx = fileConfig.connectors.findIndex((c) => c.id === req.params.id);
@@ -106,6 +112,7 @@ export function createApiRouter(
   router.delete("/connectors/:id", async (req, res) => {
     try {
       await manager.removeConnector(req.params.id);
+      console.error(`[admin] Connector deleted: ${req.params.id}`);
       // Persist to config.json
       const fileConfig = configStore.read();
       fileConfig.connectors = fileConfig.connectors.filter((c) => c.id !== req.params.id);
@@ -187,6 +194,7 @@ export function createApiRouter(
         timeoutMs: updates.timeoutMs ?? current.timeoutMs,
       };
       await manager.updateAIConfig(newAi);
+      console.error(`[admin] AI config updated (model: ${newAi.model})`);
       // Persist to config.json
       configStore.updateAI({
         baseUrl: newAi.baseUrl,
@@ -248,6 +256,7 @@ export function createApiRouter(
   router.post("/execute-sql", async (req, res) => {
     const { sql, connector } = req.body as { sql: string; connector?: string; maxRows?: number };
     if (!sql) { res.status(400).json({ error: "sql is required" }); return; }
+    if (sql.length > 50000) { res.status(400).json({ error: "SQL query too long (max 50000 chars)" }); return; }
     const maxRows = Math.min(Math.max(1, Number(req.body.maxRows) || safety.maxRows), safety.maxRows);
 
     const start = Date.now();
@@ -298,6 +307,10 @@ export function createApiRouter(
           "Cache-Control": "no-cache",
           Connection: "keep-alive",
         });
+
+        // Track client disconnect
+        let clientDisconnected = false;
+        req.on("close", () => { clientDisconnected = true; });
 
         // Send route info as first event
         if (routeInfo) {
@@ -374,7 +387,13 @@ export function createApiRouter(
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       logger.log({ tool: "ask", connector: connector ?? "default", question, success: false, error: msg, executionTimeMs: Date.now() - start });
-      res.status(500).json({ error: msg });
+      if (res.headersSent) {
+        // Already streaming SSE — send error event and close
+        res.write(`data: ${JSON.stringify({ type: "error", error: msg })}\n\n`);
+        res.end();
+      } else {
+        res.status(500).json({ error: msg });
+      }
     }
   });
 
@@ -470,6 +489,10 @@ export function createApiRouter(
         Connection: "keep-alive",
       });
 
+      // Track client disconnect
+      let clientDisconnected = false;
+      req.on("close", () => { clientDisconnected = true; });
+
       const stepResults: Array<{
         order: number; title: string; sql: string;
         success: boolean; error?: string;
@@ -480,6 +503,7 @@ export function createApiRouter(
         const asksql = manager.get(wf.connector);
 
         for (const step of wf.steps) {
+          if (clientDisconnected) break;
           // Notify: step starting
           res.write(`data: ${JSON.stringify({ type: "step-start", order: step.order, title: step.title })}\n\n`);
 
@@ -510,7 +534,8 @@ export function createApiRouter(
 
           const datasetsText = stepResults.map((sr) => {
             if (!sr.success) return `## Dataset ${sr.order}: ${sr.title}\nSQL execution failed: ${sr.error}`;
-            const header = Object.keys(sr.rows[0] ?? {}).join(" | ");
+            if (sr.rows.length === 0) return `## Dataset ${sr.order}: ${sr.title}\n0 row(s)\n\nNo data returned.`;
+            const header = Object.keys(sr.rows[0]).join(" | ");
             const rows = sr.rows.slice(0, 100).map((r) => Object.values(r).map((v) => v === null ? "NULL" : String(v)).join(" | ")).join("\n");
             return `## Dataset ${sr.order}: ${sr.title}\n${sr.rowCount} row(s)\n\n${header}\n${rows}`;
           }).join("\n\n---\n\n");
@@ -559,6 +584,98 @@ SUMMARIZE a well-structured markdown report.`;
         res.write(`data: ${JSON.stringify({ type: "error", error: err instanceof Error ? err.message : String(err) })}\n\n`);
         res.end();
       }
+    });
+  }
+
+  // ── Scheduler ───────────────────────────────────────
+
+  if (schedulerStore && schedulerEngine) {
+    router.get("/scheduler/jobs", (_req, res) => {
+      const jobs = schedulerStore.listJobs();
+      const jobsWithLastRun = jobs.map((j) => ({
+        ...j,
+        lastRun: schedulerStore.getLatestRun(j.id) ?? null,
+      }));
+      res.json(jobsWithLastRun);
+    });
+
+    router.post("/scheduler/jobs", (req, res) => {
+      try {
+        const { workflowId, name, scheduleType, intervalSeconds, dailyRunTime, timeoutSeconds, emailRecipients } = req.body;
+        if (!workflowId || !scheduleType) {
+          res.status(400).json({ error: "workflowId and scheduleType are required" }); return;
+        }
+
+        // Validate email recipients
+        if (emailRecipients && Array.isArray(emailRecipients)) {
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          const invalid = emailRecipients.filter((e: string) => !emailRegex.test(e));
+          if (invalid.length > 0) {
+            res.status(400).json({ error: `Invalid email address(es): ${invalid.join(", ")}` }); return;
+          }
+        }
+
+        // Validate dailyRunTime format
+        if (scheduleType === "daily" && dailyRunTime) {
+          const timeParts = dailyRunTime.split(":");
+          if (timeParts.length !== 2) { res.status(400).json({ error: "dailyRunTime must be HH:MM format" }); return; }
+          const [h, m] = timeParts.map(Number);
+          if (isNaN(h) || isNaN(m) || h < 0 || h > 23 || m < 0 || m > 59) {
+            res.status(400).json({ error: "Invalid time. Hours must be 0-23, minutes 0-59" }); return;
+          }
+        }
+
+        // Calculate initial nextRunAt
+        let nextRunAt: string;
+        if (scheduleType === "daily" && dailyRunTime) {
+          const [hours, minutes] = dailyRunTime.split(":").map(Number);
+          const target = new Date();
+          target.setHours(hours, minutes, 0, 0);
+          if (target.getTime() <= Date.now()) target.setDate(target.getDate() + 1);
+          nextRunAt = target.toISOString();
+        } else {
+          nextRunAt = new Date(Date.now() + (intervalSeconds ?? 3600) * 1000).toISOString();
+        }
+
+        const job = schedulerStore.createJob({
+          workflowId,
+          name: name ?? "Scheduled Workflow",
+          scheduleType,
+          intervalSeconds: scheduleType === "interval" ? (intervalSeconds ?? 3600) : undefined,
+          dailyRunTime: scheduleType === "daily" ? dailyRunTime : undefined,
+          timeoutSeconds: timeoutSeconds ?? 300,
+          emailRecipients: emailRecipients ?? [],
+          isEnabled: true,
+          nextRunAt,
+        });
+        res.status(201).json(job);
+      } catch (err) {
+        res.status(400).json({ error: err instanceof Error ? err.message : String(err) });
+      }
+    });
+
+    router.put("/scheduler/jobs/:id", (req, res) => {
+      const job = schedulerStore.updateJob(req.params.id, req.body);
+      if (!job) { res.status(404).json({ error: "Scheduled job not found" }); return; }
+      res.json(job);
+    });
+
+    router.delete("/scheduler/jobs/:id", (req, res) => {
+      const ok = schedulerStore.deleteJob(req.params.id);
+      if (!ok) { res.status(404).json({ error: "Scheduled job not found" }); return; }
+      res.json({ ok: true });
+    });
+
+    router.post("/scheduler/jobs/:id/trigger", async (req, res) => {
+      const runId = await schedulerEngine.triggerJob(req.params.id);
+      if (!runId) { res.status(404).json({ error: "Job or workflow not found" }); return; }
+      res.json({ ok: true, runId, message: "Job triggered" });
+    });
+
+    router.get("/scheduler/jobs/:id/runs", (req, res) => {
+      const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
+      const runs = schedulerStore.listRuns(req.params.id, limit);
+      res.json(runs);
     });
   }
 

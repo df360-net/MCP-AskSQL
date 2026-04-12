@@ -2,6 +2,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { AIConfig } from "./asksql/core/ai/client.js";
+import type { EmailConfig } from "./email-service.js";
 
 // ---------------------------------------------------------------------------
 // Config types
@@ -70,6 +71,8 @@ export interface AppConfig {
     /** Score multiplier to determine clear winner (default: 2) */
     winnerScoreMultiplier?: number;
   };
+  /** Email notification config for scheduled job reports */
+  email?: EmailConfig;
 }
 
 // ---------------------------------------------------------------------------
@@ -124,6 +127,7 @@ interface FileConfig {
     minTokenLength?: number;
     winnerScoreMultiplier?: number;
   };
+  email?: EmailConfig;
 }
 
 // ---------------------------------------------------------------------------
@@ -189,6 +193,6 @@ export function loadConfig(configPath?: string): AppConfig {
 
   return {
     connectors, ai, safety: raw.safety, schemaCacheTtlHours, dataDir,
-    ask: raw.ask, logging: raw.logging, routing: raw.routing,
+    ask: raw.ask, logging: raw.logging, routing: raw.routing, email: raw.email,
   };
 }

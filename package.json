@@ -1,6 +1,6 @@
 {
   "name": "mcp-asksql",
-  "version": "1.0.0",
+  "version": "1.6.0",
   "description": "MCP server for natural language SQL queries across 10+ databases",
   "type": "module",
   "license": "MIT",
@@ -35,10 +35,12 @@
     "test:coverage": "npx --node-options=--experimental-vm-modules jest --coverage"
   },
   "dependencies": {
+    "@aws-sdk/client-sesv2": "^3.1029.0",
     "@databricks/sql": "^1.13.0",
     "@google-cloud/bigquery": "^8.1.1",
     "@modelcontextprotocol/sdk": "^1.10.1",
     "express": "^4.21.2",
+    "marked": "^18.0.0",
     "md-to-pdf": "^5.2.5",
     "mssql": "^12.2.1",
     "mysql2": "^3.20.0",
@@ -57,6 +59,7 @@
     "@tailwindcss/postcss": "^4.1.18",
     "@types/express": "^4.17.21",
     "@types/jest": "^29.5.12",
+    "@types/marked": "^5.0.2",
     "@types/mssql": "^9.1.11",
     "@types/node": "^20.11.16",
     "@types/pg": "^8.20.0",

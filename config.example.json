@@ -62,7 +62,9 @@
   "ai": {
     "baseUrl": "https://api.deepseek.com/v1",
     "apiKey": "sk-your-key-here",
-    "model": "deepseek-chat"
+    "model": "deepseek-chat",
+    "maxTokens": 4096,
+    "temperature": 0.3
   },
   "safety": {
     "maxRows": 5000,
@@ -91,5 +93,15 @@
   "routing": {
     "minTokenLength": 3,
     "winnerScoreMultiplier": 2
+  },
+
+  "email": {
+    "enabled": false,
+    "from": "MCP-AskSQL <asksql@yourdomain.com>",
+    "ses": {
+      "region": "us-east-1",
+      "accessKeyId": "AKIA_YOUR_ACCESS_KEY",
+      "secretAccessKey": "your-secret-access-key"
+    }
   }
 }

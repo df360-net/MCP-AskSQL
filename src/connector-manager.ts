@@ -36,6 +36,7 @@ export class ConnectorManager {
   private cache: SchemaCache;
   private ttlHours: number;
   private refreshing = new Set<string>();
+  private backgroundPromises = new Set<Promise<void>>();
   private router: AutoRouter | null = null;
 
   constructor(config: AppConfig) {
@@ -133,7 +134,8 @@ export class ConnectorManager {
     const instance = this.instances.get(connectorId);
     if (!instance) {
       const available = Array.from(this.instances.keys()).join(", ");
-      throw new Error(`Unknown connector '${connectorId}'. Available: ${available}`);
+      console.error(`[connector-manager] Unknown connector '${connectorId}'. Available: ${available}`);
+      throw new Error(`Unknown connector '${connectorId}'`);
     }
 
     if (this.ttlHours > 0 && this.cache.isStale(connectorId, this.ttlHours)) {
@@ -147,8 +149,7 @@ export class ConnectorManager {
     const connectorId = id ?? this.defaultId;
     let asksql = this.instances.get(connectorId);
     if (!asksql) {
-      const available = Array.from(this.instances.keys()).join(", ");
-      throw new Error(`Unknown connector '${connectorId}'. Available: ${available}`);
+      throw new Error(`Unknown connector '${connectorId}'`);
     }
 
     try {
@@ -305,7 +306,7 @@ export class ConnectorManager {
     if (this.refreshing.has(connectorId)) return;
     this.refreshing.add(connectorId);
 
-    this.refreshSchema(connectorId)
+    const promise = this.refreshSchema(connectorId)
       .then((r) => {
         console.error(`[${connectorId}] background refresh complete (${r.tables} tables, ${r.columns} columns)`);
       })
@@ -314,10 +315,17 @@ export class ConnectorManager {
       })
       .finally(() => {
         this.refreshing.delete(connectorId);
+        this.backgroundPromises.delete(promise);
       });
+    this.backgroundPromises.add(promise);
   }
 
   async close(): Promise<void> {
+    // Wait for in-flight background refreshes
+    if (this.backgroundPromises.size > 0) {
+      console.error(`[connector-manager] Waiting for ${this.backgroundPromises.size} background refresh(es) to complete...`);
+      await Promise.allSettled(Array.from(this.backgroundPromises));
+    }
     for (const [id, asksql] of this.instances) {
       try {
         await asksql.close();

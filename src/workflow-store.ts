@@ -75,10 +75,13 @@ export class WorkflowStore {
     const content = readFileSync(this.filePath, "utf-8").trim();
     if (!content) return [];
     const workflows: Workflow[] = [];
-    for (const line of content.split("\n")) {
+    const lines = content.split("\n");
+    for (let i = 0; i < lines.length; i++) {
       try {
-        workflows.push(JSON.parse(line) as Workflow);
-      } catch { /* skip malformed */ }
+        workflows.push(JSON.parse(lines[i]) as Workflow);
+      } catch (err) {
+        console.warn(`[workflow-store] Skipped malformed line ${i + 1}: ${err instanceof Error ? err.message : err}`);
+      }
     }
     return workflows;
   }

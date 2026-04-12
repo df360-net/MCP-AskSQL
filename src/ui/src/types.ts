@@ -127,6 +127,38 @@ export interface WorkflowRunResult {
   summary?: string;
 }
 
+export interface ScheduledJob {
+  id: string;
+  workflowId: string;
+  name: string;
+  scheduleType: "interval" | "daily";
+  intervalSeconds?: number;
+  dailyRunTime?: string;
+  timeoutSeconds: number;
+  emailRecipients?: string[];
+  isEnabled: boolean;
+  nextRunAt: string;
+  createdAt: string;
+  updatedAt: string;
+  lastRun?: JobRun | null;
+}
+
+export interface JobRun {
+  id: string;
+  jobId: string;
+  workflowId: string;
+  status: "RUNNING" | "COMPLETED" | "FAILED" | "TIMED_OUT";
+  startedAt: string;
+  completedAt?: string;
+  durationMs?: number;
+  stepsCompleted: number;
+  stepsTotal: number;
+  summary?: string;
+  error?: string;
+  emailSent?: boolean;
+  triggeredBy: "SCHEDULER" | "MANUAL";
+}
+
 export interface SQLExecuteResult {
   rows: Record<string, unknown>[];
   columns: Array<{ name: string; type: string }>;

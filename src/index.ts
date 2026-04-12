@@ -15,6 +15,9 @@ import { ConnectorManager } from "./connector-manager.js";
 import { QueryLogger } from "./query-logger.js";
 import { createApiRouter } from "./api-routes.js";
 import { WorkflowStore } from "./workflow-store.js";
+import { SchedulerStore } from "./scheduler/store.js";
+import { SchedulerEngine } from "./scheduler/engine.js";
+import type { EmailConfig } from "./email-service.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -40,12 +43,16 @@ async function startStdio(manager: ConnectorManager, logger: QueryLogger, askCon
 }
 
 // --- HTTP transport (stateful — session per client) ---
-async function startHttp(manager: ConnectorManager, logger: QueryLogger, configStore: ConfigStore, workflowStore: WorkflowStore, port: number, askConfig?: AskAgentAppConfig, shutdownTimeoutMs = 10000) {
+async function startHttp(manager: ConnectorManager, logger: QueryLogger, configStore: ConfigStore, workflowStore: WorkflowStore, schedulerStore: SchedulerStore, port: number, askConfig?: AskAgentAppConfig, shutdownTimeoutMs = 10000, emailConfig?: EmailConfig) {
   const app = express();
-  app.use(express.json());
+  app.use(express.json({ limit: "1mb" }));
+
+  // ── Scheduler engine ──
+  const schedulerEngine = new SchedulerEngine({ store: schedulerStore, workflowStore, manager, email: emailConfig });
+  schedulerEngine.start();
 
   // ── REST API for admin UI ──
-  app.use("/api", createApiRouter(manager, configStore, logger, askConfig, workflowStore));
+  app.use("/api", createApiRouter(manager, configStore, logger, askConfig, workflowStore, schedulerEngine, schedulerStore));
 
   // ── MCP protocol (stateful sessions) ──
   const sessions = new Map<string, StreamableHTTPServerTransport>();
@@ -145,6 +152,7 @@ async function startHttp(manager: ConnectorManager, logger: QueryLogger, configS
   for (const signal of ["SIGINT", "SIGTERM"] as const) {
     process.on(signal, () => {
       console.error(`Received ${signal}, shutting down...`);
+      schedulerEngine.stop();
       // Stop accepting new connections, then close resources
       httpServer.close(async () => {
         await manager.close();
@@ -177,6 +185,7 @@ async function main() {
   const maxLogFileSize = (config.logging?.maxFileSizeMb ?? 10) * 1024 * 1024;
   const logger = new QueryLogger(config.dataDir, maxLogFileSize, config.logging?.defaultPageSize);
   const workflowStore = new WorkflowStore(config.dataDir);
+  const schedulerStore = new SchedulerStore(config.dataDir);
 
   await manager.init();
   console.error(`Loaded ${manager.listConnectors().length} connector(s)`);
@@ -194,7 +203,7 @@ async function main() {
         port = parsed;
       }
     }
-    await startHttp(manager, logger, configStore, workflowStore, port, config.ask, config.safety?.shutdownTimeoutMs);
+    await startHttp(manager, logger, configStore, workflowStore, schedulerStore, port, config.ask, config.safety?.shutdownTimeoutMs, config.email);
   }
 }
 
