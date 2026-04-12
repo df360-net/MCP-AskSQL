@@ -97,11 +97,12 @@
 
   "email": {
     "enabled": false,
-    "from": "MCP-AskSQL <asksql@yourdomain.com>",
-    "ses": {
-      "region": "us-east-1",
-      "accessKeyId": "AKIA_YOUR_ACCESS_KEY",
-      "secretAccessKey": "your-secret-access-key"
+    "from": "your-email@gmail.com",
+    "smtp": {
+      "host": "smtp.gmail.com",
+      "port": 587,
+      "user": "your-email@gmail.com",
+      "pass": "your-gmail-app-password"
     }
   }
 }

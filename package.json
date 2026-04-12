@@ -35,7 +35,6 @@
     "test:coverage": "npx --node-options=--experimental-vm-modules jest --coverage"
   },
   "dependencies": {
-    "@aws-sdk/client-sesv2": "^3.1029.0",
     "@databricks/sql": "^1.13.0",
     "@google-cloud/bigquery": "^8.1.1",
     "@modelcontextprotocol/sdk": "^1.10.1",
@@ -44,6 +43,7 @@
     "md-to-pdf": "^5.2.5",
     "mssql": "^12.2.1",
     "mysql2": "^3.20.0",
+    "nodemailer": "^8.0.5",
     "oracledb": "^6.10.0",
     "pg": "^8.20.0",
     "postgres": "^3.4.5",
@@ -62,6 +62,7 @@
     "@types/marked": "^5.0.2",
     "@types/mssql": "^9.1.11",
     "@types/node": "^20.11.16",
+    "@types/nodemailer": "^8.0.0",
     "@types/pg": "^8.20.0",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",

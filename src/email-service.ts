@@ -1,4 +1,5 @@
-import { SESv2Client, SendEmailCommand } from "@aws-sdk/client-sesv2";
+import nodemailer from "nodemailer";
+import type { Transporter } from "nodemailer";
 import { marked } from "marked";
 
 // ---------------------------------------------------------------------------
@@ -8,36 +9,38 @@ import { marked } from "marked";
 export interface EmailConfig {
   /** Enable email notifications for scheduled job completions */
   enabled?: boolean;
-  /** From address (e.g., "MCP-AskSQL <noreply@yourdomain.com>") */
+  /** From address (e.g., "MCP-AskSQL <you@gmail.com>") */
   from: string;
-  /** AWS SES config */
-  ses?: {
-    region?: string;
-    accessKeyId?: string;
-    secretAccessKey?: string;
+  /** SMTP config (works with Gmail, Outlook, or any SMTP provider) */
+  smtp: {
+    host: string;
+    port?: number;
+    secure?: boolean;
+    user: string;
+    pass: string;
   };
 }
 
 // ---------------------------------------------------------------------------
-// Email Service — AWS SES direct (same pattern as MyHeadlines)
+// Email Service — nodemailer SMTP (same pattern as dataflow_360_claude)
 // ---------------------------------------------------------------------------
 
 export class EmailService {
   private config: EmailConfig;
-  private sesClient: SESv2Client;
+  private transporter: Transporter;
 
   constructor(config: EmailConfig) {
     this.config = config;
 
-    if (config.ses?.accessKeyId && !config.ses?.secretAccessKey) {
-      throw new Error("Email config: ses.secretAccessKey is required when ses.accessKeyId is provided");
+    if (!config.smtp?.host || !config.smtp?.user || !config.smtp?.pass) {
+      throw new Error("Email config: smtp.host, smtp.user, and smtp.pass are required");
     }
 
-    this.sesClient = new SESv2Client({
-      region: config.ses?.region ?? "us-east-1",
-      credentials: config.ses?.accessKeyId
-        ? { accessKeyId: config.ses.accessKeyId, secretAccessKey: config.ses.secretAccessKey ?? "" }
-        : undefined,
+    this.transporter = nodemailer.createTransport({
+      host: config.smtp.host,
+      port: config.smtp.port ?? 587,
+      secure: config.smtp.secure ?? (config.smtp.port === 465),
+      auth: { user: config.smtp.user, pass: config.smtp.pass },
     });
   }
 
@@ -79,69 +82,29 @@ export class EmailService {
 </body>
 </html>`;
 
-    try {
-      if (pdfBuffer) {
-        // Send as raw MIME email with PDF attachment
-        const rawEmail = this.buildRawEmail(recipients, subject, html, jobName, pdfBuffer);
-        await this.sesClient.send(new SendEmailCommand({
-          FromEmailAddress: this.config.from,
-          Destination: { ToAddresses: recipients },
-          Content: { Raw: { Data: rawEmail } },
-        }));
-      } else {
-        // Simple email without attachment
-        await this.sesClient.send(new SendEmailCommand({
-          FromEmailAddress: this.config.from,
-          Destination: { ToAddresses: recipients },
-          Content: {
-            Simple: {
-              Subject: { Data: subject, Charset: "UTF-8" },
-              Body: {
-                Html: { Data: html, Charset: "UTF-8" },
-                Text: { Data: markdown, Charset: "UTF-8" },
-              },
-            },
-          },
-        }));
-      }
+    const attachments: Array<{ filename: string; content: Buffer; contentType: string }> = [];
+    if (pdfBuffer) {
+      const safeJobName = jobName.replace(/[^a-zA-Z0-9_-]/g, "_");
+      attachments.push({
+        filename: `${safeJobName}_${new Date().toISOString().slice(0, 10)}.pdf`,
+        content: pdfBuffer,
+        contentType: "application/pdf",
+      });
+    }
 
+    try {
+      await this.transporter.sendMail({
+        from: this.config.from,
+        to: recipients.join(", "),
+        subject,
+        html,
+        attachments,
+      });
       console.error(`[email] Report sent to ${recipients.join("; ")} for job "${jobName}"`);
       return true;
     } catch (err) {
       console.error(`[email] Failed to send report for job "${jobName}":`, err instanceof Error ? err.message : err);
       return false;
     }
-  }
-
-  /** Build a raw MIME email with HTML body + PDF attachment. */
-  private buildRawEmail(recipients: string[], subject: string, html: string, jobName: string, pdfBuffer: Buffer): Uint8Array {
-    const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    const safeJobName = jobName.replace(/[^a-zA-Z0-9_-]/g, "_");
-    const filename = `${safeJobName}_${new Date().toISOString().slice(0, 10)}.pdf`;
-
-    const rawMessage = [
-      `From: ${this.config.from}`,
-      `To: ${recipients.join(", ")}`,
-      `Subject: ${subject}`,
-      `MIME-Version: 1.0`,
-      `Content-Type: multipart/mixed; boundary="${boundary}"`,
-      ``,
-      `--${boundary}`,
-      `Content-Type: text/html; charset=UTF-8`,
-      `Content-Transfer-Encoding: 7bit`,
-      ``,
-      html,
-      ``,
-      `--${boundary}`,
-      `Content-Type: application/pdf; name="${filename}"`,
-      `Content-Transfer-Encoding: base64`,
-      `Content-Disposition: attachment; filename="${filename}"`,
-      ``,
-      pdfBuffer.toString("base64"),
-      ``,
-      `--${boundary}--`,
-    ].join("\r\n");
-
-    return new TextEncoder().encode(rawMessage);
   }
 }
