@@ -12,6 +12,8 @@ export interface ConnectorConfig {
   id: string;
   connectionString: string;
   schemas?: string[];
+  /** Catalog name (for Databricks / Unity Catalog). Required for Databricks. */
+  catalog?: string;
   abbreviations?: Record<string, string[]>;
   examples?: Array<{ question: string; sql: string }>;
   schemaPrefix?: string;
@@ -84,6 +86,7 @@ interface FileConfig {
     id: string;
     connectionString: string;
     schemas?: string[];
+    catalog?: string;
     abbreviations?: Record<string, string[]>;
     examples?: Array<{ question: string; sql: string }>;
     schemaPrefix?: string;
@@ -181,7 +184,8 @@ export function loadConfig(configPath?: string): AppConfig {
   const connectors: ConnectorConfig[] = raw.connectors.map((c) => ({
     id: c.id,
     connectionString: c.connectionString,
-    schemas: c.schemas ?? ["public"],
+    schemas: c.schemas,
+    catalog: c.catalog,
     abbreviations: c.abbreviations,
     examples: c.examples,
     schemaPrefix: c.schemaPrefix,

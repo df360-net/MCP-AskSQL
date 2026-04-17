@@ -79,7 +79,7 @@ export interface QueryResult {
 export class AskSQL {
   private connector: AskSQLConnector;
   private ai: AIClient;
-  private schemas: string[];
+  private schemas: string[] | undefined;
   private forwardMap: Record<string, string[]>;
   private llmContext: LLMContext | null = null;
   private examples: Array<{ question: string; sql: string }>;
@@ -94,13 +94,13 @@ export class AskSQL {
     // Resolve connector
     if ("connector" in config.connector && typeof config.connector.connector === "object") {
       this.connector = config.connector.connector;
-      this.schemas = config.connector.schemas ?? ["public"];
+      this.schemas = config.connector.schemas;
     } else {
       const cc = config.connector as { connectionString: string; schemas?: string[]; type?: string; catalog?: string };
       const type = cc.type ?? detectConnectorType(cc.connectionString);
       if (!type) throw new Error(`Cannot detect connector type from: ${cc.connectionString}`);
       this.connector = createConnector(type, { connectionString: cc.connectionString, catalog: cc.catalog });
-      this.schemas = cc.schemas ?? ["public"];
+      this.schemas = cc.schemas;
     }
 
     // AI client

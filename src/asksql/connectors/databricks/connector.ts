@@ -87,7 +87,11 @@ export class DatabricksConnector implements AskSQLConnector {
     this.hostname = parsed.hostname;
     this.httpPath = parsed.httpPath;
     this.token = parsed.token;
-    this.catalog = (config.catalog as string) ?? parsed.catalog;
+    const catalog = config.catalog as string | undefined;
+    if (!catalog) {
+      throw new Error("DatabricksConnector requires 'catalog' in config.json (e.g., \"catalog\": \"samples\")");
+    }
+    this.catalog = catalog;
     this.client = new DBSQLClient();
     this.maxSampleValues = (config.maxSampleValues as number) ?? 20;
   }
@@ -95,10 +99,10 @@ export class DatabricksConnector implements AskSQLConnector {
   /**
    * Parse: databricks://token:dapi_xxx@hostname:443/sql/1.0/warehouses/warehouse_id
    * or:   databricks://token:dapi_xxx@hostname/sql/1.0/warehouses/warehouse_id
-   * Catalog can be passed as config.schemas[0] or defaults to "main"
+   * Catalog must be provided separately via config.catalog.
    */
   private parseConnectionString(url: string): {
-    token: string; hostname: string; httpPath: string; catalog: string;
+    token: string; hostname: string; httpPath: string;
   } {
     // databricks://token:dapi_xxx@hostname[:port]/http/path
     const match = url.match(/^databricks:\/\/([^:]+):([^@]+)@([^:/]+)(?::\d+)?\/(.+)$/i);
@@ -111,7 +115,6 @@ export class DatabricksConnector implements AskSQLConnector {
       token: decodeURIComponent(match[2]),
       hostname: match[3],
       httpPath: `/${match[4]}`,
-      catalog: "main", // Override via schemas config
     };
   }
 

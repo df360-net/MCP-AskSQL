@@ -82,6 +82,12 @@ export function SchemaDetailPanel({ connectorId, onClose }: Props) {
     return () => controller.abort();
   }, [connectorId]);
 
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose]);
+
   if (loading) return <div className="modal-overlay"><div className="modal"><p>Loading schema...</p></div></div>;
   if (!data) return <div className="modal-overlay"><div className="modal"><p>No schema cache found.</p><button onClick={onClose}>Close</button></div></div>;
 
@@ -97,12 +103,6 @@ export function SchemaDetailPanel({ connectorId, onClose }: Props) {
     ? allTables.filter((t) => t.fullName.toLowerCase().includes(search.toLowerCase()) ||
         t.columns.some((c) => c.columnName.toLowerCase().includes(search.toLowerCase())))
     : allTables;
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [onClose]);
 
   return (
     <div className="modal-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="schema-panel-title">
