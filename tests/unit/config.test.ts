@@ -33,14 +33,14 @@ describe("loadConfig", () => {
     expect(config.ai.maxTokens).toBe(4096);
   });
 
-  it("defaults schemas to ['public'] when omitted", () => {
+  it("leaves schemas undefined when omitted (connector auto-discovers)", () => {
     const data = {
       ...VALID_FILE_CONFIG,
       connectors: [{ id: "x", connectionString: "postgres://x@y/z" }],
     };
     const p = writeConfig(data);
     const config = loadConfig(p);
-    expect(config.connectors[0].schemas).toEqual(["public"]);
+    expect(config.connectors[0].schemas).toBeUndefined();
   });
 
   it("defaults schemaCacheTtlHours to 24", () => {
