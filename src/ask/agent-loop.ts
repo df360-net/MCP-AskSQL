@@ -173,6 +173,18 @@ export async function askAgentLoop(config: AskAgentConfig): Promise<AskAgentResu
     const reasoning = `**Turn ${turn + 1}**: ${thinkingText}\n${toolDetails}`;
     reasoningParts.push(reasoning);
 
+    // Console log turn-by-turn visibility (Level 2 reasoning + Level 1 SQL execution)
+    console.error(`\n[ask-agent] ═══ Turn ${turn + 1} ═══`);
+    console.error(`[ask-agent] Level 2 reasoning: ${thinkingText}`);
+    if (turnToolLines.length > 0) {
+      console.error(`[ask-agent] Tool calls:\n${toolDetails}`);
+      for (const tc of turnToolCalls) {
+        if (tc.sql) {
+          console.error(`[ask-agent] Level 1 SQL (${tc.sqlSuccess ? "OK" : "FAIL"}): ${tc.sql}`);
+        }
+      }
+    }
+
     // Stream this turn to the caller
     onTurn?.({ turn, reasoning, toolCalls: turnToolCalls, done: false });
   }
