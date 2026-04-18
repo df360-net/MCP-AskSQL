@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useFetch, apiPost, apiDelete } from "../hooks/useApi.js";
 import type { ConnectorInfo, HealthResult } from "../types.js";
 import { ConnectorFormModal } from "./ConnectorFormModal.js";
@@ -11,6 +11,7 @@ export function ConnectorsPage() {
   const [schemaConnectorId, setSchemaConnectorId] = useState<string | null>(null);
   const [healthResults, setHealthResults] = useState<Record<string, { status: string; detail?: string }>>({});
   const [actionLoading, setActionLoading] = useState<Record<string, boolean>>({});
+  const didAutoCheck = useRef(false);
 
   const handleHealth = async (id: string) => {
     setActionLoading((p) => ({ ...p, [id]: true }));
@@ -23,6 +24,14 @@ export function ConnectorsPage() {
       setActionLoading((p) => ({ ...p, [id]: false }));
     }
   };
+
+  // Auto-check every connector's health on page mount. Fires in parallel and updates each
+  // card independently as its result arrives — no blocking, no all-or-nothing.
+  useEffect(() => {
+    if (!connectors || didAutoCheck.current) return;
+    didAutoCheck.current = true;
+    void Promise.allSettled(connectors.map((c) => handleHealth(c.id)));
+  }, [connectors]);
 
   const handleRefresh = async (id: string) => {
     setActionLoading((p) => ({ ...p, [`refresh-${id}`]: true }));
@@ -51,7 +60,7 @@ export function ConnectorsPage() {
     setSchemaConnectorId(id);
   };
 
-  if (loading) return <p>Loading...</p>;
+  if (loading && !connectors) return <p>Loading...</p>;
 
   return (
     <div className="conn-page">
@@ -102,6 +111,11 @@ export function ConnectorsPage() {
                 <span className={`conn-status ${healthResults[c.id].status === "connected" ? "connected" : "disconnected"}`}>
                   <span className="conn-status-dot" />
                   {healthResults[c.id].status === "connected" ? "Connected" : "Disconnected"}
+                </span>
+              ) : actionLoading[c.id] ? (
+                <span className="conn-status neutral">
+                  <span className="conn-status-dot" />
+                  Checking...
                 </span>
               ) : (
                 <span className="conn-status neutral">

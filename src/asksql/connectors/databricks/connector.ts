@@ -96,7 +96,11 @@ export class DatabricksConnector implements AskSQLConnector {
     this.client = new DBSQLClient({
       logger: {
         log: (level: string, message: string) => {
-          process.stderr.write(`[databricks-${level}] ${message}\n`);
+          // Only surface warn/error. The driver emits per-chunk "100000 chunk of data fetched"
+          // at info level — that's buffer-size bookkeeping, not actual row counts.
+          if (level === "error" || level === "warn") {
+            process.stderr.write(`[databricks-${level}] ${message}\n`);
+          }
         },
       },
     });

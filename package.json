@@ -1,6 +1,6 @@
 {
   "name": "mcp-asksql",
-  "version": "1.6.6",
+  "version": "1.6.7",
   "description": "MCP server for natural language SQL queries across 10+ databases",
   "type": "module",
   "license": "MIT",
