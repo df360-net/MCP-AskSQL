@@ -14,6 +14,8 @@ export interface ConnectorConfig {
   schemas?: string[];
   /** Catalog name (for Databricks / Unity Catalog). Required for Databricks. */
   catalog?: string;
+  /** Per-connector timeout in milliseconds. Currently used by Databricks as socketTimeout to ride out warehouse cold starts (default: 60000). */
+  timeoutMs?: number;
   abbreviations?: Record<string, string[]>;
   examples?: Array<{ question: string; sql: string }>;
   schemaPrefix?: string;
@@ -87,6 +89,7 @@ interface FileConfig {
     connectionString: string;
     schemas?: string[];
     catalog?: string;
+    timeoutMs?: number;
     abbreviations?: Record<string, string[]>;
     examples?: Array<{ question: string; sql: string }>;
     schemaPrefix?: string;
@@ -186,6 +189,7 @@ export function loadConfig(configPath?: string): AppConfig {
     connectionString: c.connectionString,
     schemas: c.schemas,
     catalog: c.catalog,
+    timeoutMs: c.timeoutMs,
     abbreviations: c.abbreviations,
     examples: c.examples,
     schemaPrefix: c.schemaPrefix,

@@ -115,6 +115,7 @@ export class ConnectorManager {
         connectionString: c.connectionString,
         ...(c.schemas !== undefined && { schemas: c.schemas }),
         ...(c.catalog !== undefined && { catalog: c.catalog }),
+        ...(c.timeoutMs !== undefined && { timeoutMs: c.timeoutMs }),
         ...(c.pool?.connectTimeoutMs !== undefined && { connectTimeoutMs: c.pool.connectTimeoutMs }),
         ...(c.pool?.idleTimeoutMs !== undefined && { idleTimeoutMs: c.pool.idleTimeoutMs }),
         ...(c.pool?.size !== undefined && { poolSize: c.pool.size }),

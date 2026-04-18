@@ -76,6 +76,7 @@ export class DatabricksConnector implements AskSQLConnector {
   private token: string;
   private catalog: string;
   private maxSampleValues: number;
+  private socketTimeoutMs: number;
 
   constructor(config: Record<string, unknown>) {
     const connectionString = config.connectionString as string | undefined;
@@ -100,6 +101,7 @@ export class DatabricksConnector implements AskSQLConnector {
       },
     });
     this.maxSampleValues = (config.maxSampleValues as number) ?? 20;
+    this.socketTimeoutMs = (config.timeoutMs as number) ?? 60000;
   }
 
   /**
@@ -130,6 +132,7 @@ export class DatabricksConnector implements AskSQLConnector {
         host: this.hostname,
         path: this.httpPath,
         token: this.token,
+        socketTimeout: this.socketTimeoutMs,
       });
       this.session = await this.client.openSession({
         initialCatalog: this.catalog,
@@ -139,11 +142,19 @@ export class DatabricksConnector implements AskSQLConnector {
   }
 
   private async query<T = Record<string, unknown>>(sqlText: string): Promise<T[]> {
-    const session = await this.getSession();
-    const operation = await session.executeStatement(sqlText);
-    const result = await operation.fetchAll();
-    await operation.close();
-    return result as T[];
+    try {
+      const session = await this.getSession();
+      const operation = await session.executeStatement(sqlText);
+      const result = await operation.fetchAll();
+      await operation.close();
+      return result as T[];
+    } catch (err) {
+      // Invalidate cached session on failure so the next call rebuilds cleanly.
+      // Warehouse auto-pause + cold-start drops the cached session; without this,
+      // subsequent queries would keep reusing the broken session.
+      this.session = null;
+      throw err;
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════

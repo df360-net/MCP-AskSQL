@@ -4,6 +4,7 @@
       "id": "postgres",
       "connectionString": "postgres://user:password@localhost:5432/mydb",
       "schemas": ["public"],
+      "timeoutMs": 15000,
       "pool": {
         "connectTimeoutMs": 10000,
         "idleTimeoutMs": 20000,
@@ -13,32 +14,38 @@
     {
       "id": "mysql",
       "connectionString": "mysql://user:password@localhost:3306/mydb",
-      "schemas": ["mydb"]
+      "schemas": ["mydb"],
+      "timeoutMs": 15000
     },
     {
       "id": "mssql",
       "connectionString": "mssql://sa:password@localhost:1433/mydb",
-      "schemas": ["dbo"]
+      "schemas": ["dbo"],
+      "timeoutMs": 15000
     },
     {
       "id": "oracle",
       "connectionString": "oracle://scott:tiger@localhost:1521/ORCL",
-      "schemas": ["SCOTT"]
+      "schemas": ["SCOTT"],
+      "timeoutMs": 15000
     },
     {
       "id": "snowflake",
       "connectionString": "snowflake://user:password@xy12345.us-east-1/analytics/compute_wh",
-      "schemas": ["PUBLIC"]
+      "schemas": ["PUBLIC"],
+      "timeoutMs": 60000
     },
     {
       "id": "bigquery",
       "connectionString": "bigquery://my-project?keyFile=/path/to/service-account.json&location=US",
-      "schemas": ["my_dataset"]
+      "schemas": ["my_dataset"],
+      "timeoutMs": 60000
     },
     {
       "id": "redshift",
       "connectionString": "redshift://awsuser:password@cluster.abc123.us-east-1.redshift.amazonaws.com:5439/dev",
       "schemas": ["public"],
+      "timeoutMs": 60000,
       "pool": {
         "connectTimeoutMs": 60000
       }
@@ -46,17 +53,20 @@
     {
       "id": "databricks",
       "connectionString": "databricks://token:dapi_abc123@example.cloud.databricks.com/sql/1.0/warehouses/abc123",
-      "schemas": ["default"]
+      "schemas": ["default"],
+      "timeoutMs": 90000
     },
     {
       "id": "dremio",
       "connectionString": "dremio://user:password@dremio.example.com:31010/my_source",
-      "schemas": ["my_source"]
+      "schemas": ["my_source"],
+      "timeoutMs": 30000
     },
     {
       "id": "teradata",
       "connectionString": "teradata://dbc:dbc@teradata.example.com/production",
-      "schemas": ["production"]
+      "schemas": ["production"],
+      "timeoutMs": 30000
     }
   ],
   "ai": {

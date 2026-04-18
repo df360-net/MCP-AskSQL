@@ -96,10 +96,13 @@ export class AskSQL {
       this.connector = config.connector.connector;
       this.schemas = config.connector.schemas;
     } else {
-      const cc = config.connector as { connectionString: string; schemas?: string[]; type?: string; catalog?: string };
-      const type = cc.type ?? detectConnectorType(cc.connectionString);
+      const cc = config.connector as Record<string, unknown> & { connectionString: string; schemas?: string[]; type?: string };
+      const type = (cc.type as string | undefined) ?? detectConnectorType(cc.connectionString);
       if (!type) throw new Error(`Cannot detect connector type from: ${cc.connectionString}`);
-      this.connector = createConnector(type, { connectionString: cc.connectionString, catalog: cc.catalog });
+      // Forward the full connector config (timeoutMs, connectTimeoutMs, poolSize, catalog, maxSampleValues, etc.)
+      // so per-connector tuning in config.json actually reaches the connector implementation.
+      const { type: _type, schemas: _schemas, ...connectorConfig } = cc;
+      this.connector = createConnector(type, connectorConfig);
       this.schemas = cc.schemas;
     }
 
