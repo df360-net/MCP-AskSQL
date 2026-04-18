@@ -27,6 +27,7 @@ export function registerTools(
     },
     async ({ question, connector, maxRows }) => {
       const start = Date.now();
+      console.error(`[mcp-ask] enter handler: question="${question.slice(0, 80)}", connector=${connector ?? "(auto)"}, askAgentEnabled=${askAgentEnabled}`);
       try {
         // Auto-route if no connector specified
         let resolvedConnector = connector;
@@ -40,6 +41,7 @@ export function registerTools(
 
         // ── Agent loop branch (2-layer intelligence) ──
         if (askAgentEnabled) {
+          console.error(`[mcp-ask] entering agent loop (maxTurns=${askAgentMaxTurns})`);
           const agentResult = await askAgentLoop({
             question,
             connectorId: resolvedConnector,

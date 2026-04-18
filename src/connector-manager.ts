@@ -51,18 +51,21 @@ export class ConnectorManager {
       await this.initConnector(c);
     }
 
-    // Pre-warm: validate connectivity (non-blocking)
-    for (const [id, asksql] of this.instances) {
-      try {
-        await asksql.healthCheck();
-        console.error(`[${id}] health check passed`);
-      } catch (err) {
-        console.error(`[${id}] health check failed:`, err instanceof Error ? err.message : err);
-      }
-    }
-
     // Build auto-router from cached schemas
     this.rebuildRouter();
+
+    // Pre-warm: validate connectivity in background (fire-and-forget, parallel)
+    // Do not await — startup must not block on DB reachability.
+    void Promise.allSettled(
+      Array.from(this.instances.entries()).map(async ([id, asksql]) => {
+        try {
+          await asksql.healthCheck();
+          console.error(`[${id}] health check passed`);
+        } catch (err) {
+          console.error(`[${id}] health check failed:`, err instanceof Error ? err.message : err);
+        }
+      }),
+    );
   }
 
   private rebuildRouter(): void {

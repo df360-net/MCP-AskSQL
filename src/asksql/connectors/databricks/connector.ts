@@ -92,7 +92,13 @@ export class DatabricksConnector implements AskSQLConnector {
       throw new Error("DatabricksConnector requires 'catalog' in config.json (e.g., \"catalog\": \"samples\")");
     }
     this.catalog = catalog;
-    this.client = new DBSQLClient();
+    this.client = new DBSQLClient({
+      logger: {
+        log: (level: string, message: string) => {
+          process.stderr.write(`[databricks-${level}] ${message}\n`);
+        },
+      },
+    });
     this.maxSampleValues = (config.maxSampleValues as number) ?? 20;
   }
 
